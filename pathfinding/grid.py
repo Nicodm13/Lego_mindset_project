@@ -1,9 +1,9 @@
-from node import Node
+from .node import Node
 
 class Grid:
     def __init__(self, width, height):
         self.width = width
-        self.heigth = height
+        self.height = height
         self.grid = [[Node(x,y) for y in range(height)] for x in range(width)]
         self.obstacles = set()
 
