@@ -1,24 +1,44 @@
-# This ensures that the webcam loads instantly, otherwise it takes almost a minute...
-# ----------------------------------------------------------
 import os
-os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
-# ----------------------------------------------------------
-
 import cv2
+from pathfinding.grid import Grid
+from util.grid_util import GridUtil
 
-# Open a connection to the webcam (0 is usually the default camera)
-cap = cv2.VideoCapture(1)
+# This ensures that the webcam loads instantly, otherwise it takes almost a minute...
+os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
+cap = cv2.VideoCapture(0)
+
+# Get initial webcam resolution dynamically
+ret, frame = cap.read()
+if not ret:
+    print("Webcam couldn't be opened.")
+    exit()
+
+height, width, _ = frame.shape
+
+# Create Grid and GridUtil
+grid = Grid(300, 300, 10)
+grid_util = GridUtil(grid)
+
+WINDOW_NAME = "Webcam Feed"
+cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)  # Make resizable
+cv2.setMouseCallback(WINDOW_NAME, grid_util.handle_mouse)
 
 while True:
-    ret, frame = cap.read()  # Read a frame from the webcam
+    ret, frame = cap.read()
     if not ret:
         break
-    
-    cv2.imshow("Webcam Feed", frame)  # Display the frame
-    
-    # Press 'q' to exit
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+
+    frame_height, frame_width = frame.shape[:2]
+
+    # Draw grid
+    frame = grid_util.draw(frame, window_width=frame_width, window_height=frame_height)
+
+    cv2.imshow(WINDOW_NAME, frame)
+
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord('q'):
         break
 
 cap.release()
 cv2.destroyAllWindows()
+
