@@ -1,0 +1,23 @@
+follow_path(nodes): // it is assumed the first element of nodes is the starting node
+    for (set i = 1; i < len(nodes); i++) do
+        xdiff = nodes[i-1].x - nodes[i].x
+        ydiff = nodes[i-1].y - nodes[i].y
+        angle = diff_to_degrees(xdiff,ydiff)
+
+        rotate_to(angle) // this would be defined elsewhere in controller.py
+
+        distance = grid.distance()
+
+        if xdiff != 0 && ydiff != 0 do
+            distance = distance * sqrt(2)
+        end
+
+        drive(distance) // this would be defined elsewhere in controller.py
+    end
+
+diff_to_degrees(xdiff, ydiff): // y should maybe be opposite based on whether (0,0) is top left or bottom left
+    angle = 180
+    angle = angle + xdiff * 90
+    angle = angle + ydiff * 45
+
+    return angle
