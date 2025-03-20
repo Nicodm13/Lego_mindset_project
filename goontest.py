@@ -13,6 +13,10 @@ def canny_edge_detection(frame):
 
     return blurred, edges
 
+def Blablabla()
+    
+    return graph
+
 
 if __name__ == "__main__":
     # Open the default webcam
