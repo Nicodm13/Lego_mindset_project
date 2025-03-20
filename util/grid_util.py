@@ -112,4 +112,4 @@ class GridUtil:
         self.grid.width = self.grid_width
         self.grid.height = self.grid_height
         self.grid.density = self.density
-        self.grid.recreate_grid()
+        self.grid.create_grid()
