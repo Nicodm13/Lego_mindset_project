@@ -14,3 +14,10 @@ class Direction(Enum):
     @property
     def offset(self):
         return self.value
+    
+    @staticmethod
+    def from_offset(xdiff, ydiff):
+        for direction in Direction:
+            if direction.offset == (xdiff, ydiff):
+                return direction
+        return None
