@@ -1,6 +1,6 @@
 import math
-from .node import Node
-from .direction import Direction
+from node import Node
+from direction import Direction
 
 class Grid:
     def __init__(self, width, height, density):
@@ -32,14 +32,13 @@ class Grid:
                 neighbours.append(neighbour)
         return neighbours
     
+    @staticmethod
     def get_distance(node_a, node_b):
         dx = abs(node_a.x - node_b.x)
         dy = abs(node_a.y - node_b.y)
         if dx == 1 and dy == 1:
-            # Diagonal
             return math.sqrt(2)
         else:
-            # Straight
             return math.sqrt(dx ** 2 + dy ** 2)
 
     def is_walkable(node: Node):

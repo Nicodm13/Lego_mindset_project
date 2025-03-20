@@ -1,6 +1,6 @@
 import os
 import cv2
-from pathfinding.grid import Grid
+from robot.grid import Grid
 from util.grid_util import GridUtil
 
 # This ensures that the webcam loads instantly, otherwise it takes almost a minute...

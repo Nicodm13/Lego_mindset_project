@@ -1,16 +1,19 @@
 #!/usr/bin/env pybricks-micropython
+
 from pybricks.hubs import EV3Brick
 from pybricks.ev3devices import Motor, InfraredSensor, GyroSensor
-from pybricks.parameters import Port, Button, Stop
+from pybricks.parameters import Port, Stop
 
-from typing import List
-from pathfinding.node import Node
-from pathfinding.direction import Direction
-from pathfinding.grid import Grid
+from node import Node
+from grid import Grid
+from direction import Direction
+
+
+import socket
+
+ROBOT_PORT = 9999  # Match PC client port
 
 class Controller:
-    grid: Grid
-    
     def __init__(self, grid: Grid):
         self.grid = grid
         
@@ -22,77 +25,127 @@ class Controller:
         self.right_motor = Motor(Port.B)
         self.spinner_motor = Motor(Port.C)
 
-        # Initialize Infrared Sensor on Port.S1
+        # Initialize Sensors
         self.ir_sensor = InfraredSensor(Port.S1)
-
-        # Initialize Gyro Sensor on Port.S2
         self.gyro_sensor = GyroSensor(Port.S2)
         self.gyro_sensor.reset_angle(0)
+        self.current_heading = 0  # Start facing "north" (or whatever default)
 
         # Display message
         self.ev3.screen.print("IR & Gyro Ready")
     
-    def set_target(target: Node):
-        return
+    def navigate_to_target(self, start: Node, target: Node):
+        # For simplicity, assume direct move
+        self.follow_path([start, target])
     
-    def navigate_to_target(self, start: Node, target: Node) -> List[Node]:
-        return
-    
-    def follow_path(self, path: List[Node]):
+    def follow_path(self, path):
         i = 1
         while i < len(path):
             self.move_to(path[i-1], path[i])
             i += 1
     
     def move_to(self, start: Node, target: Node):
-        xdiff = start.x - target.x
-        ydiff = start.y - target.y
+        xdiff = target.x - start.x
+        ydiff = target.y - start.y
         
-        angle = offset_to_angle(xdiff, ydiff)
+        angle = self.offset_to_angle(xdiff, ydiff)
         self.rotate_to(angle)
         
-        distance = self.grid.get_distance(start, target)
-        self.drive(distance)
-        
-        def offset_to_angle(xdiff, ydiff):
-            angle = 180
-            angle = angle + xdiff * 90
-            angle = angle + ydiff * 45
+        #distance = Grid.get_distance(start, target)
+        #self.drive(distance)
 
-            return angle
-    
-    def get_direction():
-        return
-    
+    def offset_to_angle(self, xdiff, ydiff):
+        direction_name = Direction.from_offset(xdiff, ydiff)
+        if direction_name:
+            return Direction.ANGLE_MAP[direction_name]
+        else:
+            return self.current_heading  # Invalid or no movement → no rotation
+
+
     def drive(self, distance: float):
         angle = 360 * distance
-        self.left_motor.run_angle(speed=60, rotation_angle=angle)
-        self.right_motor.run_angle(speed=60, rotation_angle=angle)
+        self.left_motor.run_target(100, angle, wait=False)
+        self.right_motor.run_target(100, angle, wait=False)
     
-    # Rotate Method (positive = right turn, negative = left turn)
-    def rotate_to(self, target_angle, speed=150):
-        self.ev3.screen.clear()
-        self.ev3.screen.print("Rotating {}°".format(target_angle))
+    def rotate_to(self, target_angle, speed=500):
+        angle_diff = (target_angle - self.current_heading) % 360
+        if angle_diff > 180:
+            angle_diff -= 360  # Shortest path
 
         # Reset gyro
         self.gyro_sensor.reset_angle(0)
-        
-        # Determine direction
-        if target_angle > 0:
-            # Right turn
-            self.motor_left.run(speed)
-            self.motor_right.run(-speed)
-        else:
-            # Left turn
-            self.motor_left.run(-speed)
-            self.motor_right.run(speed)
 
-        # Keep turning until desired angle reached
-        while abs(self.gyro_sensor.angle()) < abs(target_angle):
-            pass  # Just wait
-        
+        # Start motors
+        if angle_diff > 0:
+            self.left_motor.run(speed)
+            self.right_motor.run(-speed)
+        elif angle_diff < 0:
+            self.left_motor.run(-speed)
+            self.right_motor.run(speed)
+        else:
+            return  # Already aligned
+
+        # Rotate, stop slightly early
+        while abs(self.gyro_sensor.angle()) < abs(angle_diff) - 2:
+            pass
+
         # Stop motors
-        self.motor_left.stop(Stop.BRAKE)
-        self.motor_right.stop(Stop.BRAKE)
+        self.left_motor.stop(Stop.BRAKE)
+        self.right_motor.stop(Stop.BRAKE)
+
+        # Update heading
+        self.current_heading = target_angle % 360
+
+     
+    def start_server(self):
+        # Create socket
+        server_socket = socket.socket()
+        server_socket.bind(('', ROBOT_PORT))
+        server_socket.listen(1)
+        self.ev3.screen.print("Waiting for connection...")
         
-        self.ev3.screen.print("Done!")
+        conn, addr = server_socket.accept()
+        self.ev3.screen.clear()
+        self.ev3.screen.print("Connected!")
+
+        try:
+            while True:
+                data = conn.recv(1024)
+                if not data:
+                    break
+
+                command = data.decode().strip()
+                self.ev3.screen.clear()
+                self.ev3.screen.print("Cmd: {}".format(command))
+                
+                if command.startswith("MOVE"):
+                    parts = command.split()
+                    if len(parts) != 5:
+                        continue
+                    
+                    start_x, start_y = int(parts[1]), int(parts[2])
+                    target_x, target_y = int(parts[3]), int(parts[4])
+                    
+                    start_node = self.grid.get_node(start_x, start_y)
+                    target_node = self.grid.get_node(target_x, target_y)
+                    
+                    self.navigate_to_target(start_node, target_node)
+        except Exception as e:
+            self.ev3.screen.print("Error!")
+            print("Error:", e)
+        finally:
+            conn.close()
+            server_socket.close()
+            self.ev3.screen.print("Server Closed")
+
+
+# === MAIN FUNCTION ===
+
+def main():
+    grid = Grid(440, 440, 5)
+    controller = Controller(grid)
+    controller.start_server()
+
+# === Run Main ===
+if __name__ == '__main__':
+    main()
