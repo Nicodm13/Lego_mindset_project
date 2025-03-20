@@ -13,14 +13,12 @@ def canny_edge_detection(frame):
 
     return blurred, edges
 
-def Blablabla()
-    
-    return graph
-
 
 if __name__ == "__main__":
     # Open the default webcam
     cap = cv2.VideoCapture(0)
+    fps = 15 # Set the desired FPS for the webcam. Go lower if your computer is slow.
+    sleepTime = int(1000 / fps)
 
     while True:
         # Read a frame from the webcam
@@ -34,12 +32,16 @@ if __name__ == "__main__":
 
         # Display the original frame and the edge-detected frame
         # cv2.imshow("Original", frame)
-        cv2.imshow("Blurred", blurred)
+        #cv2.imshow("Blurred", blurred)
         cv2.imshow("Edges", edges)
+        print(edges)
 
         # Exit the loop when 'q' key is pressed
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        if cv2.waitKey(sleepTime) & 0xFF == ord('q'):
             break
+
+
+
 
     # Release the webcam and close the windows
     cap.release()
