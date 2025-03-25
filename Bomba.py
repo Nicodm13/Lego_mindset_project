@@ -18,7 +18,7 @@ class GraphWithCoordinates:
          #   raise ValueError("Both nodes must exist in the graph.")
 
     def draw_graph(self):
-        plt.figure(figsize=(60, 60))
+        plt.figure(figsize=(900, 900))
         nx.draw(self.graph, self.positions, with_labels=True, node_color='lightblue', edge_color='gray', node_size=700)
         plt.show()
 

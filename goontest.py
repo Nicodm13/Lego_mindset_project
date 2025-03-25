@@ -1,4 +1,6 @@
 import cv2
+import networkx as nx
+import matplotlib.pyplot as plt
 
 
 def canny_edge_detection(frame):
@@ -17,7 +19,7 @@ def canny_edge_detection(frame):
 if __name__ == "__main__":
     # Open the default webcam
     cap = cv2.VideoCapture(0)
-    fps = 15 # Set the desired FPS for the webcam. Go lower if your computer is slow.
+    fps = 1 # Set the desired FPS for the webcam. Go lower if your computer is slow.
     sleepTime = int(1000 / fps)
 
     while True:
@@ -34,7 +36,9 @@ if __name__ == "__main__":
         # cv2.imshow("Original", frame)
         #cv2.imshow("Blurred", blurred)
         cv2.imshow("Edges", edges)
-        print(edges)
+        G = nx.Graph()
+        G.add_edges_from(edges)
+        plt.show()
 
         # Exit the loop when 'q' key is pressed
         if cv2.waitKey(sleepTime) & 0xFF == ord('q'):
