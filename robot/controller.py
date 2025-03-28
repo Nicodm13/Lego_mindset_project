@@ -10,12 +10,16 @@ from direction import Direction
 
 
 import socket
+import math
 
 ROBOT_PORT = 9999  # Match PC client port
 
 class Controller:
     def __init__(self, grid: Grid):
         self.grid = grid
+        
+        # Physical specifications
+        self.wheel_diameter = 55 # millimeters
         
         # Initialize EV3 Brick
         self.ev3 = EV3Brick()
@@ -63,9 +67,18 @@ class Controller:
 
 
     def drive(self, distance: float):
-        angle = 360 * distance
+        """Drive the car forward
+
+        Args:
+            distance (float): distance to drive in millimeters
+        """
+        angle = self.distance_to_angle(distance)
         self.left_motor.run_target(100, angle, wait=False)
         self.right_motor.run_target(100, angle, wait=True)
+        
+    def distance_to_angle(self, distance: float):
+        degrees_per_mm = 360 / (math.pi * self.wheel_diameter)
+        return distance * degrees_per_mm
     
     def rotate_to(self, target_angle, speed=500):
         angle_diff = (target_angle - self.current_heading) % 360
