@@ -51,21 +51,21 @@ class Controller:
         angle = self.offset_to_angle(xdiff, ydiff)
         self.rotate_to(angle)
         
-        #distance = Grid.get_distance(start, target)
-        #self.drive(distance)
+        distance = Grid.get_distance(start, target)
+        self.drive(distance)
 
     def offset_to_angle(self, xdiff, ydiff):
         direction_name = Direction.from_offset(xdiff, ydiff)
         if direction_name:
             return Direction.ANGLE_MAP[direction_name]
         else:
-            return self.current_heading  # Invalid or no movement → no rotation
+            return self.current_heading  
 
 
     def drive(self, distance: float):
         angle = 360 * distance
         self.left_motor.run_target(100, angle, wait=False)
-        self.right_motor.run_target(100, angle, wait=False)
+        self.right_motor.run_target(100, angle, wait=True)
     
     def rotate_to(self, target_angle, speed=500):
         angle_diff = (target_angle - self.current_heading) % 360

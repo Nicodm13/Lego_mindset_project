@@ -11,7 +11,7 @@ from robot.grid import Grid
 from util.grid_util import GridUtil
 
 # --- Global Variables ---
-robot_ip = ""
+robot_ip = "192.168.71.19"
 start_node = None
 target_nodes = []
 client_socket = None
@@ -22,13 +22,6 @@ connection_failed = threading.Event()
 # --- Input Thread ---
 def handle_inputs(grid):
     global robot_ip, start_node, target_nodes, client_socket
-
-    # --- Get Robot IP ---
-    robot_ip = input("Enter Robot IP address (e.g., 192.168.X.X): ").strip()
-    if not robot_ip:
-        print("No IP entered. Exiting.")
-        connection_failed.set()
-        return
 
     # --- Connect to Robot ---
     ROBOT_PORT = 9999
