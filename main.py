@@ -26,44 +26,78 @@ def handle_inputs(grid):
     # --- Connect to Robot ---
     ROBOT_PORT = 9999
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    print(f"Connecting to robot at {robot_ip}:{ROBOT_PORT}...")
+    print("Connecting to robot at {}:{}...".format(robot_ip, ROBOT_PORT))
     try:
         client_socket.connect((robot_ip, ROBOT_PORT))
         print("Connected to robot!")
     except Exception as e:
-        print(f"Failed to connect: {e}")
+        print("Failed to connect: {}".format(e))
         connection_failed.set()
         return
 
-    # --- Enter Start Node ---
+    input_ready.set()  # Allow main loop to start
+
+    print("Enter commands like:")
+    print("  MOVE {1,2} {2,2}")
+    print("  PATH {1,2} {2,2} {3,2}")
+    print("Type 'q' to quit.")
+
     while True:
         try:
-            start_x = int(input("Enter start node X: "))
-            start_y = int(input("Enter start node Y: "))
-            start_node = grid.get_node(start_x, start_y)
-            print(f"Starting at ({start_x}, {start_y})")
-            break
-        except ValueError:
-            print("Invalid input. Please enter integers.")
-
-    input_ready.set()  # Signal ready!
-
-    # --- Keep Asking Target Nodes ---
-    while True:
-        try:
-            target_x = input("Enter target node X (or 'q' to quit): ").strip()
-            if target_x.lower() == 'q':
+            command = input("Command: ").strip()
+            if command.lower() == 'q':
                 break
-            target_x = int(target_x)
 
-            target_y = int(input("Enter target node Y: ").strip())
+            if command.startswith("MOVE"):
+                coords = command.split()[1:]
+                if len(coords) != 2:
+                    print("MOVE requires exactly 2 coordinates.")
+                    continue
 
-            with target_lock:
-                target_nodes.append(grid.get_node(target_x, target_y))
+                parsed = []
+                for c in coords:
+                    c = c.strip("{}")
+                    x, y = map(int, c.split(","))
+                    node = grid.get_node(x, y)
+                    if node is None:
+                        print("Invalid node: {},{}".format(x, y))
+                        break
+                    parsed.append(node)
 
-        except ValueError:
-            print("Invalid input. Please enter integers.")
-        except KeyboardInterrupt:
+                if len(parsed) == 2:
+                    start_node = parsed[0]
+                    target_nodes = [parsed[1]]
+                    client_socket.sendall((command + "\n").encode())
+                    print("Sent command:", command)
+                else:
+                    print("Could not parse MOVE command.")
+
+            elif command.startswith("PATH"):
+                coords = command.split()[1:]
+                parsed = []
+
+                for c in coords:
+                    c = c.strip("{}")
+                    x, y = map(int, c.split(","))
+                    node = grid.get_node(x, y)
+                    if node is None:
+                        print("Invalid node: {},{}".format(x, y))
+                        break
+                    parsed.append(node)
+
+                if len(parsed) >= 2:
+                    start_node = parsed[0]
+                    target_nodes = parsed[1:]
+                    client_socket.sendall((command + "\n").encode())
+                    print("Sent command:", command)
+                else:
+                    print("Not enough coordinates for PATH.")
+
+            else:
+                print("Unknown command.")
+
+        except Exception as e:
+            print("Error:", e)
             break
 
     input_ready.clear()
@@ -103,16 +137,6 @@ while True:
     if connection_failed.is_set():
         print("Robot connection failed. Exiting.")
         break
-
-    if input_ready.is_set():
-        with target_lock:
-            if target_nodes and start_node:
-                target_node = target_nodes.pop(0)
-                print(f"Driving from ({start_node.x}, {start_node.y}) to ({target_node.x}, {target_node.y})")
-                command = f"MOVE {start_node.x} {start_node.y} {target_node.x} {target_node.y}\n"
-                client_socket.sendall(command.encode())
-                print(f"Sent command: {command.strip()}")
-                start_node = target_node
 
     key = cv2.waitKey(1) & 0xFF
     if key == ord('q'):

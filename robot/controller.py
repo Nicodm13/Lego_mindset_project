@@ -77,14 +77,14 @@ class Controller:
         
         angle = self.distance_to_angle(distance)
 
-        self.left_motor.run_angle(100, angle, wait=False)
-        self.right_motor.run_angle(100, angle, wait=True)
+        self.left_motor.run_angle(200, angle, wait=False)
+        self.right_motor.run_angle(200, angle, wait=True)
 
     def distance_to_angle(self, distance: float):
         degrees_per_mm = 360 / (math.pi * self.wheel_diameter)
         return distance * degrees_per_mm
     
-    def rotate_to(self, target_angle, speed=500):
+    def rotate_to(self, target_angle, speed=100):
         angle_diff = (target_angle - self.current_heading) % 360
         if angle_diff > 180:
             angle_diff -= 360  # Shortest path
@@ -113,48 +113,63 @@ class Controller:
         # Update heading
         self.current_heading = target_angle % 360
 
-     
     def start_server(self):
-        # Create socket
-        server_socket = socket.socket()
-        server_socket.bind(('', ROBOT_PORT))
-        server_socket.listen(1)
-        self.ev3.screen.print("Waiting for connection...")
-        
-        conn, addr = server_socket.accept()
-        self.ev3.screen.clear()
-        self.ev3.screen.print("Connected!")
+            server_socket = socket.socket()
+            server_socket.bind(('', ROBOT_PORT))
+            server_socket.listen(1)
+            self.ev3.screen.print("Waiting for connection...")
+            
+            conn, addr = server_socket.accept()
+            self.ev3.screen.clear()
+            self.ev3.screen.print("Connected!")
 
-        try:
-            while True:
-                data = conn.recv(1024)
-                if not data:
-                    break
+            try:
+                while True:
+                    data = conn.recv(1024)
+                    if not data:
+                        break
 
-                command = data.decode().strip()
-                self.ev3.screen.clear()
-                self.ev3.screen.print("Cmd: {}".format(command))
-                
-                if command.startswith("MOVE"):
-                    parts = command.split()
-                    if len(parts) != 5:
-                        continue
+                    command = data.decode().strip()
+                    self.ev3.screen.clear()
+                    self.ev3.screen.print("Cmd: {}".format(command))
                     
-                    start_x, start_y = int(parts[1]), int(parts[2])
-                    target_x, target_y = int(parts[3]), int(parts[4])
-                    
-                    start_node = self.grid.get_node(start_x, start_y)
-                    target_node = self.grid.get_node(target_x, target_y)
-                    
-                    self.navigate_to_target(start_node, target_node)
-        except Exception as e:
-            self.ev3.screen.print("Error!")
-            print("Error:", e)
-        finally:
-            conn.close()
-            server_socket.close()
-            self.ev3.screen.print("Server Closed")
+                    if command.startswith("MOVE"):
+                        parts = command.split()
+                        if len(parts) != 5:
+                            continue
+                        
+                        start_x, start_y = int(parts[1]), int(parts[2])
+                        target_x, target_y = int(parts[3]), int(parts[4])
+                        
+                        start_node = self.grid.get_node(start_x, start_y)
+                        target_node = self.grid.get_node(target_x, target_y)
+                        
+                        self.navigate_to_target(start_node, target_node)
 
+                    elif command.startswith("PATH"):
+                        parts = command.split()
+                        path = []
+
+                        for coord_str in parts[1:]:
+                            coord_str = coord_str.strip("{}")
+                            if "," in coord_str:
+                                x_str, y_str = coord_str.split(",")
+                                x, y = int(x_str), int(y_str)
+                                node = self.grid.get_node(x, y)
+                                if node:
+                                    path.append(node)
+
+                        if len(path) >= 2:
+                            self.follow_path(path)
+                        else:
+                            print("[PATH] Not enough valid nodes")
+            except Exception as e:
+                self.ev3.screen.print("Error!")
+                print("Error:", e)
+            finally:
+                conn.close()
+                server_socket.close()
+                self.ev3.screen.print("Server Closed")
 
 # === MAIN FUNCTION ===
 

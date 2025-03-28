@@ -34,8 +34,8 @@ class GridUtil:
 
         # Get aspect ratio of real-world grid
         real_aspect = self.grid.width / self.grid.height
-        draw_area_width = int(window_width)
-        draw_area_height = int(window_height)
+        draw_area_width = int(window_width * 0.8) # 80% of screen size
+        draw_area_height = int(window_height * 0.8) # 80% of screen size
 
         # Fit the real-world aspect ratio inside the draw area
         if draw_area_width / draw_area_height > real_aspect:
