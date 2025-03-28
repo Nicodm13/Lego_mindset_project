@@ -55,7 +55,7 @@ class Controller:
         angle = self.offset_to_angle(xdiff, ydiff)
         self.rotate_to(angle)
         
-        distance = Grid.get_distance(start, target)
+        distance = Grid.get_distance(self.grid, start, target)
         self.drive(distance)
 
     def offset_to_angle(self, xdiff, ydiff):
@@ -72,10 +72,14 @@ class Controller:
         Args:
             distance (float): distance to drive in millimeters
         """
-        angle = self.distance_to_angle(distance)
-        self.left_motor.run_target(100, angle, wait=False)
-        self.right_motor.run_target(100, angle, wait=True)
+        self.left_motor.stop()
+        self.right_motor.stop()
         
+        angle = self.distance_to_angle(distance)
+
+        self.left_motor.run_angle(100, angle, wait=False)
+        self.right_motor.run_angle(100, angle, wait=True)
+
     def distance_to_angle(self, distance: float):
         degrees_per_mm = 360 / (math.pi * self.wheel_diameter)
         return distance * degrees_per_mm
@@ -155,7 +159,7 @@ class Controller:
 # === MAIN FUNCTION ===
 
 def main():
-    grid = Grid(440, 440, 5)
+    grid = Grid(1800, 1200, 4)
     controller = Controller(grid)
     controller.start_server()
 
