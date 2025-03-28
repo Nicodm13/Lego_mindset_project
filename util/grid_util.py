@@ -3,11 +3,11 @@ import cv2
 class GridUtil:
     def __init__(self, grid):
         self.grid = grid
-
-        # Local copies of grid values
-        self.grid_width = grid.width
-        self.grid_height = grid.height
         self.density = grid.density
+
+        # These will be computed dynamically for drawing
+        self.grid_width = 0
+        self.grid_height = 0
 
         # Button setup
         self.button_areas = []
@@ -21,10 +21,8 @@ class GridUtil:
         spacing = 10
 
         self.button_areas = [
-            ("Size+", (start_x, start_y, start_x + button_width, start_y + button_height), self.increase_grid_size),
-            ("Size-", (start_x, start_y + (button_height + spacing), start_x + button_width, start_y + (button_height + spacing) + button_height), self.decrease_grid_size),
-            ("Density+", (start_x, start_y + 2 * (button_height + spacing), start_x + button_width, start_y + 2 * (button_height + spacing) + button_height), self.increase_density),
-            ("Density-", (start_x, start_y + 3 * (button_height + spacing), start_x + button_width, start_y + 3 * (button_height + spacing) + button_height), self.decrease_density),
+            ("Density+", (start_x, start_y, start_x + button_width, start_y + button_height), self.increase_density),
+            ("Density-", (start_x, start_y + (button_height + spacing), start_x + button_width, start_y + (button_height + spacing) + button_height), self.decrease_density),
         ]
 
     def draw(self, frame, window_width, window_height):
@@ -34,12 +32,30 @@ class GridUtil:
         button_bg_color = (150, 150, 150)
         button_border_color = (255, 255, 255)
 
-        # Draw grid centered
-        start_x = (window_width - self.grid_width) // 2
-        start_y = (window_height - self.grid_height) // 2
+        # Get aspect ratio of real-world grid
+        real_aspect = self.grid.width / self.grid.height
+        draw_area_width = int(window_width)
+        draw_area_height = int(window_height)
 
+        # Fit the real-world aspect ratio inside the draw area
+        if draw_area_width / draw_area_height > real_aspect:
+            self.grid_height = draw_area_height
+            self.grid_width = int(draw_area_height * real_aspect)
+        else:
+            self.grid_width = draw_area_width
+            self.grid_height = int(draw_area_width / real_aspect)
+
+        # Calculate cell sizes
         cell_width = self.grid_width // self.density
         cell_height = self.grid_height // self.density
+
+        # Adjust width/height to fit whole cells
+        self.grid_width = cell_width * self.density
+        self.grid_height = cell_height * self.density
+
+        # Center the grid
+        start_x = (window_width - self.grid_width) // 2
+        start_y = (window_height - self.grid_height) // 2
 
         for x in range(self.density):
             for y in range(self.density):
@@ -59,7 +75,7 @@ class GridUtil:
                             0.35, text_color, 1, cv2.LINE_AA)
 
         # Info text
-        info_text = f'Size: {self.grid_width}x{self.grid_height} | Density: {self.density}x{self.density}'
+        info_text = f'Field: {self.grid.width}x{self.grid.height} cm | Density: {self.density}x{self.density}'
         cv2.putText(frame, info_text, (10, 25), cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, text_outline, 2, cv2.LINE_AA)
         cv2.putText(frame, info_text, (10, 25), cv2.FONT_HERSHEY_SIMPLEX,
@@ -86,17 +102,6 @@ class GridUtil:
                 if x1 <= x <= x2 and y1 <= y <= y2:
                     action()
 
-    # === Size Control ===
-    def increase_grid_size(self):
-        self.grid_width += 20
-        self.grid_height += 20
-        self.apply_changes()
-
-    def decrease_grid_size(self):
-        self.grid_width = max(100, self.grid_width - 20)
-        self.grid_height = max(100, self.grid_height - 20)
-        self.apply_changes()
-
     # === Density Control ===
     def increase_density(self):
         self.density += 1
@@ -109,7 +114,5 @@ class GridUtil:
 
     # === Apply Changes to Grid ===
     def apply_changes(self):
-        self.grid.width = self.grid_width
-        self.grid.height = self.grid_height
         self.grid.density = self.density
         self.grid.create_grid()
