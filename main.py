@@ -1,74 +1,12 @@
 import os
 import sys
 import cv2
-import socket
-import threading
 
 # Add robot folder to sys.path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
 
 from robot.grid import Grid
 from util.grid_util import GridUtil
-
-# --- Global Variables ---
-robot_ip = "192.168.71.19"
-start_node = None
-target_nodes = []
-client_socket = None
-input_ready = threading.Event()
-target_lock = threading.Lock()
-connection_failed = threading.Event()
-
-# --- Input Thread ---
-def handle_inputs(grid):
-    global robot_ip, start_node, target_nodes, client_socket
-
-    # --- Connect to Robot ---
-    ROBOT_PORT = 9999
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    print(f"Connecting to robot at {robot_ip}:{ROBOT_PORT}...")
-    try:
-        client_socket.connect((robot_ip, ROBOT_PORT))
-        print("Connected to robot!")
-    except Exception as e:
-        print(f"Failed to connect: {e}")
-        connection_failed.set()
-        return
-
-    # --- Enter Start Node ---
-    while True:
-        try:
-            start_x = int(input("Enter start node X: "))
-            start_y = int(input("Enter start node Y: "))
-            start_node = grid.get_node(start_x, start_y)
-            print(f"Starting at ({start_x}, {start_y})")
-            break
-        except ValueError:
-            print("Invalid input. Please enter integers.")
-
-    input_ready.set()  # Signal ready!
-
-    # --- Keep Asking Target Nodes ---
-    while True:
-        try:
-            target_x = input("Enter target node X (or 'q' to quit): ").strip()
-            if target_x.lower() == 'q':
-                break
-            target_x = int(target_x)
-
-            target_y = int(input("Enter target node Y: ").strip())
-
-            with target_lock:
-                target_nodes.append(grid.get_node(target_x, target_y))
-
-        except ValueError:
-            print("Invalid input. Please enter integers.")
-        except KeyboardInterrupt:
-            break
-
-    input_ready.clear()
-    client_socket.close()
-    print("Disconnected from robot.")
 
 # --- Webcam Setup ---
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
@@ -79,18 +17,54 @@ if not ret:
     exit()
 
 # --- Grid Setup ---
-grid = Grid(440, 440, 5)
+grid = Grid(width=1800, height=1200, density=4)
 grid_util = GridUtil(grid)
 
 # --- OpenCV Window ---
-WINDOW_NAME = "Webcam Feed"
+WINDOW_NAME = "Webcam Feed with Grid"
 cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+cv2.setMouseCallback(WINDOW_NAME, grid_util.handle_mouse)  # ← Enable grid button clicking!
 
-# --- Start Input Thread Immediately ---
-input_thread = threading.Thread(target=handle_inputs, args=(grid,))
-input_thread.start()
 
-# --- Main Loop ---
+print("=== Real-World Distance Calculator ===")
+print(f"Grid initialized: {grid.density}x{grid.density} nodes")
+print(f"Field size: {grid.width}x{grid.height} units")
+print("Use the window to view the grid, and the terminal to enter node coordinates.\n")
+
+# --- Input Loop in Background ---
+import threading
+
+def input_loop():
+    while True:
+        try:
+            x1 = input("Start node X (or 'q' to quit): ").strip()
+            if x1.lower() == 'q':
+                break
+            y1 = input("Start node Y: ").strip()
+            x2 = input("Target node X: ").strip()
+            y2 = input("Target node Y: ").strip()
+
+            node_a = grid.get_node(int(x1), int(y1))
+            node_b = grid.get_node(int(x2), int(y2))
+
+            if node_a is None or node_b is None:
+                print("Invalid node coordinates. Please enter values within the grid range.")
+                continue
+
+            distance = grid.get_grid_distance(node_a, node_b)
+            print(f"Distance from ({x1}, {y1}) to ({x2}, {y2}) is {distance:.2f} units.\n")
+
+        except ValueError:
+            print("Please enter valid integers for coordinates.\n")
+        except KeyboardInterrupt:
+            break
+
+    print("Input loop exited.")
+
+# Start input thread
+threading.Thread(target=input_loop, daemon=True).start()
+
+# --- Main Webcam Loop ---
 while True:
     ret, frame = cap.read()
     if not ret:
@@ -99,20 +73,6 @@ while True:
     frame_height, frame_width = frame.shape[:2]
     frame = grid_util.draw(frame, window_width=frame_width, window_height=frame_height)
     cv2.imshow(WINDOW_NAME, frame)
-
-    if connection_failed.is_set():
-        print("Robot connection failed. Exiting.")
-        break
-
-    if input_ready.is_set():
-        with target_lock:
-            if target_nodes and start_node:
-                target_node = target_nodes.pop(0)
-                print(f"Driving from ({start_node.x}, {start_node.y}) to ({target_node.x}, {target_node.y})")
-                command = f"MOVE {start_node.x} {start_node.y} {target_node.x} {target_node.y}\n"
-                client_socket.sendall(command.encode())
-                print(f"Sent command: {command.strip()}")
-                start_node = target_node
 
     key = cv2.waitKey(1) & 0xFF
     if key == ord('q'):
