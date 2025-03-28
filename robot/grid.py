@@ -32,14 +32,33 @@ class Grid:
                 neighbours.append(neighbour)
         return neighbours
     
-    @staticmethod
+    
+    """ @staticmethod
     def get_distance(node_a, node_b):
         dx = abs(node_a.x - node_b.x)
         dy = abs(node_a.y - node_b.y)
         if dx == 1 and dy == 1:
             return math.sqrt(2)
         else:
-            return math.sqrt(dx ** 2 + dy ** 2)
+            return math.sqrt(dx ** 2 + dy ** 2) """
+    
+    @staticmethod
+    def get_distance(self, node_a: Node, node_b: Node):
+        dx = abs(node_a.x - node_b.x)
+        dy = abs(node_a.y - node_b.y)
+        
+        # Null
+        if dx == dy == 0:
+            return 0
+        # Horizontal
+        if dy == 0:
+            return self.width / self.density
+        # Vertical
+        elif dx == 0:
+            return self.height / self.density
+        # Diagonal
+        else:
+            return math.sqrt(self.width**2 + self.height**2) / self.density
 
     def is_walkable(node: Node):
         return
