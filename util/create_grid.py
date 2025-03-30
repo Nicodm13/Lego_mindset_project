@@ -4,8 +4,11 @@ import cv2
 import numpy as np
 
 # === CONFIGURABLE VALUES ===
-grid_rows = 10
-grid_cols = 8
+width = 180
+height = 120
+scale = 2
+grid_rows = height/scale  # height of the field multiplied by some constant
+grid_cols = width/scale  # width of the field multiplied by some constant
 handle_size = 10
 
 # Polygon corners
