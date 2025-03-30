@@ -4,8 +4,8 @@ import cv2
 import numpy as np
 
 # === CONFIGURABLE VALUES ===
-grid_rows = 18
-grid_cols = 26
+grid_rows = 10
+grid_cols = 8
 handle_size = 10
 
 # Polygon corners
@@ -72,10 +72,10 @@ def get_coordinate_from_pixel(mx, my, matrix, src):
     - mx: x coordinate of the pixel
     - my: y coordinate of the pixel
     - matrix: perspective transformation matrix
-    - src: source points used for perspective transformation (unused in this function)
+    - src: source points used for perspective transformation
 
     Returns:
-    - (gx, gy): grid coordinates
+    - (gx, gy): grid coordinates, or (-1, -1) if outside the grid
     """
     # Calculate the inverse of the perspective transformation matrix
     inv_matrix = np.linalg.inv(matrix)
@@ -83,13 +83,20 @@ def get_coordinate_from_pixel(mx, my, matrix, src):
     grid_point = cv2.perspectiveTransform(pixel_point, inv_matrix)
     gx, gy = grid_point[0][0]
 
-    # Calculate grid cell indices
+    # First check if the point is outside the normalized [0,100]×[0,100] space
+    # (since src was scaled by 100 in draw_polygon)
+    if gx < 0 or gx > 100 or gy < 0 or gy > 100:
+        return (-1, -1)
+
+    # Now calculate grid cell indices
     cell_x = int(gx * grid_cols / 100)
     cell_y = int(gy * grid_rows / 100)
 
-    # Clamp values to ensure they are within valid grid indices
-    cell_x = max(0, min(cell_x, grid_cols - 1))
-    cell_y = max(0, min(cell_y, grid_rows - 1))
+    # Final bounds check (shouldn't be needed if the first check passes,
+    # but added for numerical stability)
+    if (cell_x < 0 or cell_x >= grid_cols or
+            cell_y < 0 or cell_y >= grid_rows):
+        return (-1, -1)
 
     return (cell_x, cell_y)
 
@@ -101,7 +108,10 @@ def mouse_events(event, mx, my, flags, param):
         dragging_point = get_point_index(mx, my)
         if dragging_point == -1:
             gx, gy = get_coordinate_from_pixel(mx, my, matrix, src)
-            print(f"Grid coordinates: ({gx}, {gy})")
+            if (gx, gy) != (-1, -1):
+                print(f"Grid coordinates: ({gx}, {gy})")
+            else:
+                print("Outside the grid")
 
     elif event == cv2.EVENT_MOUSEMOVE and dragging_point != -1:
         corners[dragging_point] = (mx, my)  # moves the handle
