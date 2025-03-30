@@ -1,3 +1,5 @@
+import math
+
 import cv2
 import numpy as np
 
@@ -70,7 +72,7 @@ def get_coordinate_from_pixel(mx, my, matrix, src):
     - mx: x coordinate of the pixel
     - my: y coordinate of the pixel
     - matrix: perspective transformation matrix
-    - src: source points used for perspective transformation
+    - src: source points used for perspective transformation (unused in this function)
 
     Returns:
     - (gx, gy): grid coordinates
@@ -80,7 +82,16 @@ def get_coordinate_from_pixel(mx, my, matrix, src):
     pixel_point = np.array([[mx, my]], dtype=np.float32).reshape(-1, 1, 2)
     grid_point = cv2.perspectiveTransform(pixel_point, inv_matrix)
     gx, gy = grid_point[0][0]
-    return gx / 100, gy / 100
+
+    # Calculate grid cell indices
+    cell_x = int(gx * grid_cols / 100)
+    cell_y = int(gy * grid_rows / 100)
+
+    # Clamp values to ensure they are within valid grid indices
+    cell_x = max(0, min(cell_x, grid_cols - 1))
+    cell_y = max(0, min(cell_y, grid_rows - 1))
+
+    return (cell_x, cell_y)
 
 
 def mouse_events(event, mx, my, flags, param):
