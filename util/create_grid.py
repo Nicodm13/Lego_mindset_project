@@ -7,8 +7,8 @@ import numpy as np
 width = 180
 height = 120
 scale = 2
-grid_rows = height/scale  # height of the field multiplied by some constant
-grid_cols = width/scale  # width of the field multiplied by some constant
+grid_rows = math.floor(height/scale)  # height of the field multiplied by some constant
+grid_cols = math.floor(width/scale)  # width of the field multiplied by some constant
 handle_size = 10
 
 # Polygon corners
