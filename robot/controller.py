@@ -71,11 +71,12 @@ class Controller:
             return self.current_heading  
 
 
-    def drive(self, distance: float, speed=200):
-        """Drive the car forward
+    def drive(self, distance: float, speed: int = 200):
+        """Drive the robot forward.
 
         Args:
-            distance (float): distance to drive in millimeters
+            distance (float): Distance to drive in millimeters.
+            speed (int, optional): Speed of wheel rotation in degrees/second. Defaults to 200.
         """
         self.left_motor.stop()
         self.right_motor.stop()
@@ -114,7 +115,13 @@ class Controller:
         print("WARNING: Wall too close, stopping and continuing")
         
     
-    def rotate_to(self, target_angle, speed=100):
+    def rotate_to(self, target_angle: float, speed: int = 100):
+        """Rotate robot to a specific angle.
+
+        Args:
+            target_angle (float): Angle to rotate to in degrees, eg. 315 for perfect NW.
+            speed (int, optional): Speed of wheel rotation in degrees/second. Defaults to 100.
+        """
         angle_diff = (target_angle - self.current_heading) % 360
         if angle_diff > 180:
             angle_diff -= 360  # Shortest path
