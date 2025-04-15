@@ -1,8 +1,9 @@
 #!/usr/bin/env pybricks-micropython
 
 from pybricks.hubs import EV3Brick
-from pybricks.ev3devices import Motor, InfraredSensor, GyroSensor
+from pybricks.ev3devices import Motor, GyroSensor, UltrasonicSensor
 from pybricks.parameters import Port, Stop
+from pybricks.tools import wait
 
 from node import Node
 from grid import Grid
@@ -30,13 +31,10 @@ class Controller:
         self.spinner_motor = Motor(Port.C)
 
         # Initialize Sensors
-        self.ir_sensor = InfraredSensor(Port.S1)
         self.gyro_sensor = GyroSensor(Port.S2)
         self.gyro_sensor.reset_angle(0)
         self.current_heading = 0  # Start facing "north" (or whatever default)
-
-        # Display message
-        self.ev3.screen.print("IR & Gyro Ready")
+        self.us_sensor = UltrasonicSensor(Port.S1)
     
     def navigate_to_target(self, start: Node, target: Node):
         # For simplicity, assume direct move
@@ -66,7 +64,7 @@ class Controller:
             return self.current_heading  
 
 
-    def drive(self, distance: float):
+    def drive(self, distance: float, speed=200):
         """Drive the car forward
 
         Args:
@@ -75,14 +73,37 @@ class Controller:
         self.left_motor.stop()
         self.right_motor.stop()
         
-        angle = self.distance_to_angle(distance)
+        distance_limit = 50  # mm
 
-        self.left_motor.run_angle(200, angle, wait=False)
-        self.right_motor.run_angle(200, angle, wait=True)
+        start_angle = self.left_motor.angle()
+        target_angle = self.distance_to_angle(distance)
+
+        self.left_motor.run(speed)
+        self.right_motor.run(speed)
+
+        while True:
+            # Check how far we've gone
+            current_angle = self.left_motor.angle()
+            if abs(current_angle - start_angle) >= abs(target_angle):
+                break  # We've reached the target
+
+            dist = self.us_sensor.distance()
+            print("US: ", dist, "mm")
+
+            if dist < distance_limit:
+                self.on_wall_too_close()
+                break
+
+        self.left_motor.brake()
+        self.right_motor.brake()
 
     def distance_to_angle(self, distance: float):
         degrees_per_mm = 360 / (math.pi * self.wheel_diameter)
         return distance * degrees_per_mm
+    
+    def on_wall_too_close(self):
+        print("WARNING: Wall too close!")
+        
     
     def rotate_to(self, target_angle, speed=100):
         angle_diff = (target_angle - self.current_heading) % 360
