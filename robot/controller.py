@@ -8,12 +8,13 @@ from pybricks.tools import wait
 from node import Node
 from grid import Grid
 from direction import Direction
-
+from astar import AStar
 
 import socket
 import math
 
 ROBOT_PORT = 9999  # Match PC client port
+DEFAULT_HEADING = 0 # North
 
 class Controller:
     def __init__(self, grid: Grid):
@@ -33,13 +34,19 @@ class Controller:
         # Initialize Sensors
         self.gyro_sensor = GyroSensor(Port.S2)
         self.gyro_sensor.reset_angle(0)
-        self.current_heading = 0  # Start facing "north" (or whatever default)
         self.us_sensor = UltrasonicSensor(Port.S1)
+        self.current_heading = DEFAULT_HEADING
+
+        # Display message
+        self.ev3.screen.print("Controller Ready")
     
     def navigate_to_target(self, start: Node, target: Node):
-        # For simplicity, assume direct move
-        self.follow_path([start, target])
-    
+        path = AStar.find_path(start, target, self.grid)
+        if path and len(path) >= 2:
+            self.follow_path(path)
+        else:
+            self.ev3.screen.print("No path found")
+
     def follow_path(self, path):
         i = 1
         while i < len(path):
@@ -53,7 +60,7 @@ class Controller:
         angle = self.offset_to_angle(xdiff, ydiff)
         self.rotate_to(angle)
         
-        distance = Grid.get_distance(self.grid, start, target)
+        distance = self.grid.get_distance(start, target)
         self.drive(distance)
 
     def offset_to_angle(self, xdiff, ydiff):
@@ -135,62 +142,65 @@ class Controller:
         self.current_heading = target_angle % 360
 
     def start_server(self):
-            server_socket = socket.socket()
-            server_socket.bind(('', ROBOT_PORT))
-            server_socket.listen(1)
-            self.ev3.screen.print("Waiting for connection...")
-            
-            conn, addr = server_socket.accept()
-            self.ev3.screen.clear()
-            self.ev3.screen.print("Connected!")
+        server_socket = socket.socket()
+        server_socket.bind(('', ROBOT_PORT))
+        server_socket.listen(1)
+        self.ev3.screen.print("Waiting for connection...")
+        
+        conn, addr = server_socket.accept()
+        self.ev3.screen.clear()
+        self.ev3.screen.print("Connected!")
 
-            try:
-                while True:
-                    data = conn.recv(1024)
-                    if not data:
-                        break
+        try:
+            while True:
+                data = conn.recv(1024)
+                if not data:
+                    break
 
-                    command = data.decode().strip()
-                    self.ev3.screen.clear()
-                    self.ev3.screen.print("Cmd: {}".format(command))
-                    
-                    if command.startswith("MOVE"):
-                        parts = command.split()
-                        if len(parts) != 5:
-                            continue
-                        
-                        start_x, start_y = int(parts[1]), int(parts[2])
-                        target_x, target_y = int(parts[3]), int(parts[4])
-                        
-                        start_node = self.grid.get_node(start_x, start_y)
-                        target_node = self.grid.get_node(target_x, target_y)
-                        
-                        self.navigate_to_target(start_node, target_node)
-
-                    elif command.startswith("PATH"):
-                        parts = command.split()
-                        path = []
-
-                        for coord_str in parts[1:]:
-                            coord_str = coord_str.strip("{}")
-                            if "," in coord_str:
-                                x_str, y_str = coord_str.split(",")
+                command = data.decode().strip()
+                self.ev3.screen.clear()
+                self.ev3.screen.print("Cmd: {}".format(command))
+                
+                if command.startswith("OBSTACLE"):
+                    parts = command.split()[1:]
+                    for coord_str in parts:
+                        coord_str = coord_str.strip("{}")
+                        if "," in coord_str:
+                            x_str, y_str = coord_str.split(",")
+                            try:
                                 x, y = int(x_str), int(y_str)
                                 node = self.grid.get_node(x, y)
                                 if node:
-                                    path.append(node)
+                                    self.grid.add_obstacle(node)
+                            except:
+                                self.ev3.screen.print("Invalid OBST")
 
-                        if len(path) >= 2:
-                            self.follow_path(path)
-                        else:
-                            print("[PATH] Not enough valid nodes")
-            except Exception as e:
-                self.ev3.screen.print("Error!")
-                print("Error:", e)
-            finally:
-                conn.close()
-                server_socket.close()
-                self.ev3.screen.print("Server Closed")
+                if command.startswith("MOVE"):
+                    parts = command.split()
+                    coords = []
+
+                    for coord_str in parts[1:]:
+                        coord_str = coord_str.strip("{}")
+                        if "," in coord_str:
+                            x_str, y_str = coord_str.split(",")
+                            x, y = int(x_str), int(y_str)
+                            node = self.grid.get_node(x, y)
+                            if node:
+                                coords.append(node)
+
+                    if len(coords) >= 2:
+                        start_node = coords[0]
+                        target_node = coords[-1]
+                        self.navigate_to_target(start_node, target_node)
+                    else:
+                        self.ev3.screen.print("Invalid MOVE path")
+        except Exception as e:
+            self.ev3.screen.print("Error!")
+            print("Error:", e)
+        finally:
+            conn.close()
+            server_socket.close()
+            self.ev3.screen.print("Server Closed")
 
 # === MAIN FUNCTION ===
 
