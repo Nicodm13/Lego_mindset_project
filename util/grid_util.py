@@ -25,7 +25,7 @@ class GridUtil:
             ("Density-", (start_x, start_y + (button_height + spacing), start_x + button_width, start_y + (button_height + spacing) + button_height), self.decrease_density),
         ]
 
-    def draw(self, frame, window_width, window_height):
+    def draw(self, frame, window_width, window_height, path=None):
         # Styling
         text_color = (255, 255, 255)
         text_outline = (0, 0, 0)
@@ -34,8 +34,8 @@ class GridUtil:
 
         # Get aspect ratio of real-world grid
         real_aspect = self.grid.width / self.grid.height
-        draw_area_width = int(window_width * 0.8) # 80% of screen size
-        draw_area_height = int(window_height * 0.8) # 80% of screen size
+        draw_area_width = int(window_width * 0.8)
+        draw_area_height = int(window_height * 0.8)
 
         # Fit the real-world aspect ratio inside the draw area
         if draw_area_width / draw_area_height > real_aspect:
@@ -57,6 +57,7 @@ class GridUtil:
         start_x = (window_width - self.grid_width) // 2
         start_y = (window_height - self.grid_height) // 2
 
+        # Draw grid
         for x in range(self.density):
             for y in range(self.density):
                 x1 = start_x + x * cell_width
@@ -64,7 +65,13 @@ class GridUtil:
                 x2 = x1 + cell_width
                 y2 = y1 + cell_height
 
-                # Draw grid cell
+                node = self.grid.get_node(x, y)
+
+                # Fill obstacle cells
+                if hasattr(node, "is_obstacle") and node.is_obstacle:
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 150), -1)  # Dark red fill
+
+                # Draw cell border
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 1)
 
                 # Draw coordinate text
@@ -73,6 +80,23 @@ class GridUtil:
                             0.35, text_outline, 2, cv2.LINE_AA)
                 cv2.putText(frame, coord_text, (x1 + 3, y1 + 12), cv2.FONT_HERSHEY_SIMPLEX,
                             0.35, text_color, 1, cv2.LINE_AA)
+
+        # Draw path
+        if path:
+            for i, node in enumerate(path):
+                cx = start_x + node.x * cell_width + cell_width // 2
+                cy = start_y + node.y * cell_height + cell_height // 2
+
+                # Start node = green, end = red, middle = blue
+                if i == 0:
+                    color = (0, 255, 0)
+                elif i == len(path) - 1:
+                    color = (0, 0, 255)
+                else:
+                    color = (255, 0, 0)
+
+                radius = min(cell_width, cell_height) // 3
+                cv2.circle(frame, (cx, cy), radius, color, -1)
 
         # Info text
         info_text = f'Field: {self.grid.width}x{self.grid.height} cm | Density: {self.density}x{self.density}'
@@ -102,7 +126,6 @@ class GridUtil:
                 if x1 <= x <= x2 and y1 <= y <= y2:
                     action()
 
-    # === Density Control ===
     def increase_density(self):
         self.density += 1
         self.apply_changes()
@@ -112,7 +135,6 @@ class GridUtil:
             self.density -= 1
             self.apply_changes()
 
-    # === Apply Changes to Grid ===
     def apply_changes(self):
         self.grid.density = self.density
         self.grid.create_grid()

@@ -7,11 +7,13 @@ from pybricks.parameters import Port, Stop
 from node import Node
 from grid import Grid
 from direction import Direction
+from astar import AStar
 
 import socket
 import math
 
 ROBOT_PORT = 9999  # Match PC client port
+DEFAULT_HEADING = 0 # North
 
 class Controller:
     def __init__(self, grid: Grid):
@@ -32,15 +34,18 @@ class Controller:
         self.ir_sensor = InfraredSensor(Port.S1)
         self.gyro_sensor = GyroSensor(Port.S2)
         self.gyro_sensor.reset_angle(0)
-        self.current_heading = 0  # Start facing "north" (or whatever default)
+        self.current_heading = DEFAULT_HEADING
 
         # Display message
-        self.ev3.screen.print("IR & Gyro Ready")
+        self.ev3.screen.print("Controller Ready")
     
     def navigate_to_target(self, start: Node, target: Node):
-        # For simplicity, assume direct move
-        self.follow_path([start, target])
-    
+        path = AStar.find_path(start, target, self.grid)
+        if path and len(path) >= 2:
+            self.follow_path(path)
+        else:
+            self.ev3.screen.print("No path found")
+
     def follow_path(self, path):
         i = 1
         while i < len(path):
@@ -133,7 +138,7 @@ class Controller:
                 
                 if command.startswith("MOVE"):
                     parts = command.split()
-                    path = []
+                    coords = []
 
                     for coord_str in parts[1:]:
                         coord_str = coord_str.strip("{}")
@@ -142,10 +147,12 @@ class Controller:
                             x, y = int(x_str), int(y_str)
                             node = self.grid.get_node(x, y)
                             if node:
-                                path.append(node)
+                                coords.append(node)
 
-                    if len(path) >= 2:
-                        self.follow_path(path)
+                    if len(coords) >= 2:
+                        start_node = coords[0]
+                        target_node = coords[-1]
+                        self.navigate_to_target(start_node, target_node)
                     else:
                         self.ev3.screen.print("Invalid MOVE path")
         except Exception as e:
