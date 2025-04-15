@@ -8,7 +8,6 @@ from node import Node
 from grid import Grid
 from direction import Direction
 
-
 import socket
 import math
 
@@ -55,7 +54,7 @@ class Controller:
         angle = self.offset_to_angle(xdiff, ydiff)
         self.rotate_to(angle)
         
-        distance = Grid.get_distance(self.grid, start, target)
+        distance = self.grid.get_distance(start, target)
         self.drive(distance)
 
     def offset_to_angle(self, xdiff, ydiff):
@@ -64,7 +63,6 @@ class Controller:
             return Direction.ANGLE_MAP[direction_name]
         else:
             return self.current_heading  
-
 
     def drive(self, distance: float):
         """Drive the car forward
@@ -114,62 +112,49 @@ class Controller:
         self.current_heading = target_angle % 360
 
     def start_server(self):
-            server_socket = socket.socket()
-            server_socket.bind(('', ROBOT_PORT))
-            server_socket.listen(1)
-            self.ev3.screen.print("Waiting for connection...")
-            
-            conn, addr = server_socket.accept()
-            self.ev3.screen.clear()
-            self.ev3.screen.print("Connected!")
+        server_socket = socket.socket()
+        server_socket.bind(('', ROBOT_PORT))
+        server_socket.listen(1)
+        self.ev3.screen.print("Waiting for connection...")
+        
+        conn, addr = server_socket.accept()
+        self.ev3.screen.clear()
+        self.ev3.screen.print("Connected!")
 
-            try:
-                while True:
-                    data = conn.recv(1024)
-                    if not data:
-                        break
+        try:
+            while True:
+                data = conn.recv(1024)
+                if not data:
+                    break
 
-                    command = data.decode().strip()
-                    self.ev3.screen.clear()
-                    self.ev3.screen.print("Cmd: {}".format(command))
-                    
-                    if command.startswith("MOVE"):
-                        parts = command.split()
-                        if len(parts) != 5:
-                            continue
-                        
-                        start_x, start_y = int(parts[1]), int(parts[2])
-                        target_x, target_y = int(parts[3]), int(parts[4])
-                        
-                        start_node = self.grid.get_node(start_x, start_y)
-                        target_node = self.grid.get_node(target_x, target_y)
-                        
-                        self.navigate_to_target(start_node, target_node)
+                command = data.decode().strip()
+                self.ev3.screen.clear()
+                self.ev3.screen.print("Cmd: {}".format(command))
+                
+                if command.startswith("MOVE"):
+                    parts = command.split()
+                    path = []
 
-                    elif command.startswith("PATH"):
-                        parts = command.split()
-                        path = []
+                    for coord_str in parts[1:]:
+                        coord_str = coord_str.strip("{}")
+                        if "," in coord_str:
+                            x_str, y_str = coord_str.split(",")
+                            x, y = int(x_str), int(y_str)
+                            node = self.grid.get_node(x, y)
+                            if node:
+                                path.append(node)
 
-                        for coord_str in parts[1:]:
-                            coord_str = coord_str.strip("{}")
-                            if "," in coord_str:
-                                x_str, y_str = coord_str.split(",")
-                                x, y = int(x_str), int(y_str)
-                                node = self.grid.get_node(x, y)
-                                if node:
-                                    path.append(node)
-
-                        if len(path) >= 2:
-                            self.follow_path(path)
-                        else:
-                            print("[PATH] Not enough valid nodes")
-            except Exception as e:
-                self.ev3.screen.print("Error!")
-                print("Error:", e)
-            finally:
-                conn.close()
-                server_socket.close()
-                self.ev3.screen.print("Server Closed")
+                    if len(path) >= 2:
+                        self.follow_path(path)
+                    else:
+                        self.ev3.screen.print("Invalid MOVE path")
+        except Exception as e:
+            self.ev3.screen.print("Error!")
+            print("Error:", e)
+        finally:
+            conn.close()
+            server_socket.close()
+            self.ev3.screen.print("Server Closed")
 
 # === MAIN FUNCTION ===
 

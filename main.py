@@ -39,7 +39,7 @@ def handle_inputs(grid):
 
     print("Enter commands like:")
     print("  MOVE {1,2} {2,2}")
-    print("  PATH {1,2} {2,2} {3,2}")
+    print("  MOVE {1,2} {2,2} {3,2}")
     print("Type 'q' to quit.")
 
     while True:
@@ -50,32 +50,11 @@ def handle_inputs(grid):
 
             if command.startswith("MOVE"):
                 coords = command.split()[1:]
-                if len(coords) != 2:
-                    print("MOVE requires exactly 2 coordinates.")
+                if len(coords) < 2:
+                    print("MOVE requires at least 2 coordinates.")
                     continue
 
                 parsed = []
-                for c in coords:
-                    c = c.strip("{}")
-                    x, y = map(int, c.split(","))
-                    node = grid.get_node(x, y)
-                    if node is None:
-                        print("Invalid node: {},{}".format(x, y))
-                        break
-                    parsed.append(node)
-
-                if len(parsed) == 2:
-                    start_node = parsed[0]
-                    target_nodes = [parsed[1]]
-                    client_socket.sendall((command + "\n").encode())
-                    print("Sent command:", command)
-                else:
-                    print("Could not parse MOVE command.")
-
-            elif command.startswith("PATH"):
-                coords = command.split()[1:]
-                parsed = []
-
                 for c in coords:
                     c = c.strip("{}")
                     x, y = map(int, c.split(","))
@@ -91,8 +70,7 @@ def handle_inputs(grid):
                     client_socket.sendall((command + "\n").encode())
                     print("Sent command:", command)
                 else:
-                    print("Not enough coordinates for PATH.")
-
+                    print("Could not parse MOVE command.")
             else:
                 print("Unknown command.")
 

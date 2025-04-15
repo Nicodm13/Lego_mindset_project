@@ -4,9 +4,9 @@ from direction import Direction
 
 class Grid:
     def __init__(self, width, height, density):
-        self.width = width          # Field width
-        self.height = height        # Field height
-        self.density = density      # How many nodes
+        self.width = width          # Field width (in mm)
+        self.height = height        # Field height (in mm)
+        self.density = density      # Number of nodes along each axis
 
         self.grid = []
         self.create_grid()
@@ -24,44 +24,30 @@ class Grid:
 
     def get_neighbours(self, node: Node):
         neighbours = []
-        for direction in Direction:
-            dx, dy = direction.offset
+        for name, offset in Direction.ALL_DIRECTIONS:
+            dx, dy = offset
             nx, ny = node.x + dx, node.y + dy
             neighbour = self.get_node(nx, ny)
-            if neighbour:
+            if neighbour and self.is_walkable(neighbour):
                 neighbours.append(neighbour)
         return neighbours
-    
-    
-    """ @staticmethod
-    def get_distance(node_a, node_b):
-        dx = abs(node_a.x - node_b.x)
-        dy = abs(node_a.y - node_b.y)
-        if dx == 1 and dy == 1:
-            return math.sqrt(2)
-        else:
-            return math.sqrt(dx ** 2 + dy ** 2) """
-    
-    @staticmethod
+
     def get_distance(self, node_a: Node, node_b: Node):
         dx = abs(node_a.x - node_b.x)
         dy = abs(node_a.y - node_b.y)
-        
-        # Null
+
         if dx == dy == 0:
             return 0
-        # Horizontal
-        if dy == 0:
+        elif dy == 0:
             return self.width / self.density
-        # Vertical
         elif dx == 0:
             return self.height / self.density
-        # Diagonal
         else:
-            return math.sqrt(self.width**2 + self.height**2) / self.density
+            # Diagonal cost based on physical size
+            return math.sqrt((self.width / self.density) ** 2 + (self.height / self.density) ** 2)
 
-    def is_walkable(node: Node):
-        return
-    
-    def add_obstacle(node: Node):
-        return
+    def is_walkable(self, node: Node):
+        return not getattr(node, 'is_obstacle', False)
+
+    def add_obstacle(self, node: Node):
+        node.is_obstacle = True
