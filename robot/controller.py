@@ -136,6 +136,20 @@ class Controller:
                 self.ev3.screen.clear()
                 self.ev3.screen.print("Cmd: {}".format(command))
                 
+                if command.startswith("OBSTACLE"):
+                    parts = command.split()[1:]
+                    for coord_str in parts:
+                        coord_str = coord_str.strip("{}")
+                        if "," in coord_str:
+                            x_str, y_str = coord_str.split(",")
+                            try:
+                                x, y = int(x_str), int(y_str)
+                                node = self.grid.get_node(x, y)
+                                if node:
+                                    self.grid.add_obstacle(node)
+                            except:
+                                self.ev3.screen.print("Invalid OBST")
+
                 if command.startswith("MOVE"):
                     parts = command.split()
                     coords = []
