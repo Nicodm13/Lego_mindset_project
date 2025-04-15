@@ -109,7 +109,9 @@ class Controller:
         return distance * degrees_per_mm
     
     def on_wall_too_close(self):
-        print("WARNING: Wall too close!")
+        self.left_motor.brake()
+        self.right_motor.brake()
+        print("WARNING: Wall too close, stopping and continuing")
         
     
     def rotate_to(self, target_angle, speed=100):
