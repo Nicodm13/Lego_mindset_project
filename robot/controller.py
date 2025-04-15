@@ -81,7 +81,7 @@ class Controller:
 
 
     def drive(self, distance: float, speed: int = 200):
-        """Drive the robot forward.
+        """Drive the robot forward. **NB: This implementation does not allow for reversing**.
 
         Args:
             distance (float): Distance to drive in millimeters.
@@ -92,21 +92,26 @@ class Controller:
         
         distance_limit = 50  # mm
 
-        start_angle = self.left_motor.angle()
-        target_angle = self.distance_to_angle(distance)
+        current_angle = self.left_motor.angle()
+        goal_angle = self.distance_to_angle(distance)
+        traveled_angle = 0
 
         self.left_motor.run(speed)
         self.right_motor.run(speed)
 
         while True:
-            # Check how far we've gone
+            prev_angle = current_angle
             current_angle = self.left_motor.angle()
-            if abs(current_angle - start_angle) >= abs(target_angle):
-                break  # We've reached the target
+            
+            if current_angle >= prev_angle:
+                traveled_angle += current_angle - prev_angle
+            else:
+                traveled_angle += (360 - prev_angle) + current_angle
+                
+            if traveled_angle >= goal_angle:
+                break
 
             dist = self.us_sensor.distance()
-            print("US: ", dist, "mm")
-
             if dist < distance_limit:
                 self.on_wall_too_close()
                 break
