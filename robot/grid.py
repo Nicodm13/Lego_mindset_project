@@ -47,7 +47,7 @@ class Grid:
             return math.sqrt((self.width / self.density) ** 2 + (self.height / self.density) ** 2)
 
     def is_walkable(self, node: Node):
-        return not getattr(node, 'is_obstacle', False)
+        return not node.is_obstacle
 
     def add_obstacle(self, node: Node):
         node.is_obstacle = True

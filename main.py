@@ -11,7 +11,7 @@ from robot.grid import Grid
 from util.grid_overlay import GridOverlay
 
 # --- Global Variables ---
-robot_ip = "192.168.71.19"
+robot_ip = "192.168.112.19"
 robot_port = 9999
 start_node = None
 target_node = None
@@ -55,8 +55,15 @@ def connect_to_robot():
 
         # Send all obstacles in one OBSTACLE command
         print("Sending obstacles to robot...")
-        if grid.obstacles:
-            obstacle_str = " ".join(f"{{{n.x},{n.y}}}" for n in grid.obstacles)
+        obstacle_nodes = [
+            node
+            for col in grid.grid
+            for node in col
+            if node.is_obstacle
+        ]
+
+        if obstacle_nodes:
+            obstacle_str = " ".join(f"{{{n.x},{n.y}}}" for n in obstacle_nodes)
             msg = f"OBSTACLE {obstacle_str}\n"
             client_socket.sendall(msg.encode())
             print(f"Sent: {msg.strip()}")

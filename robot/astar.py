@@ -30,7 +30,7 @@ class AStar:
         closed_set = set()
 
         while open_set:
-            current: Node = heapq.heappop(open_set)[1]
+            current = heapq.heappop(open_set)[1]
             if current == target:
                 return AStar.reverse_path(current)
 
