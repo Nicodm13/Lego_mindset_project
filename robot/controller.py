@@ -63,7 +63,16 @@ class Controller:
         distance = self.grid.get_distance(start, target)
         self.drive(distance)
 
-    def offset_to_angle(self, xdiff, ydiff):
+    def offset_to_angle(self, xdiff: int, ydiff: int) -> int:
+        """Convert a rectangular offset to the corresponding angle, eg. `(1, -1)` -> `45`.
+
+        Args:
+            xdiff (int): Horizontal offset.
+            ydiff (int): Vertical offset.
+
+        Returns:
+            int: Corresponding angle in degrees.
+        """        
         direction_name = Direction.from_offset(xdiff, ydiff)
         if direction_name:
             return Direction.ANGLE_MAP[direction_name]
