@@ -114,7 +114,15 @@ class Controller:
         self.left_motor.brake()
         self.right_motor.brake()
 
-    def distance_to_angle(self, distance: float):
+    def distance_to_angle(self, distance: float) -> float:
+        """Convert distance to corresponding motor angle based on wheel circumference.
+
+        Args:
+            distance (float): distance in mm
+
+        Returns:
+            float: angle for motor to turn in degrees
+        """        
         degrees_per_mm = 360 / (math.pi * self.wheel_diameter)
         return distance * degrees_per_mm
     
