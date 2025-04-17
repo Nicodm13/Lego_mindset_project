@@ -3,6 +3,7 @@ import sys
 import cv2
 import socket
 import threading
+from util.find_balls import find_ping_pong_balls, draw_ball_detections
 
 # Add robot folder to sys.path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
@@ -20,13 +21,22 @@ input_ready = threading.Event()
 connection_failed = threading.Event()
 connected = threading.Event()
 
+# Ball detection state
+detect_balls = False  # Toggle for ball detection
+ball_data = {
+    'white_balls': {'pixels': [], 'grid': []},
+    'orange_balls': {'pixels': [], 'grid': []}
+}
+
 # --- Grid & Webcam Setup ---
 grid = Grid(1800, 1200, 4)
+
 
 def handle_obstacle_marked(gx, gy):
     node = grid.get_node(gx, gy)
     if node:
         grid.add_obstacle(node)
+
 
 grid_overlay = GridOverlay(1800, 1200, 4, on_mark_obstacle=handle_obstacle_marked)
 
@@ -41,6 +51,7 @@ if not ret:
 WINDOW_NAME = "Webcam Feed"
 cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
 cv2.setMouseCallback(WINDOW_NAME, grid_overlay.mouse_events)
+
 
 # --- Connection Thread ---
 def connect_to_robot():
@@ -74,6 +85,7 @@ def connect_to_robot():
     except Exception as e:
         print(f"Failed to connect: {e}")
         connection_failed.set()
+
 
 # --- Input Loop Thread ---
 def start_input_loop():
@@ -130,17 +142,37 @@ def start_input_loop():
         pass
     print("Disconnected from robot.")
 
+
 # --- Main Loop ---
 while True:
     ret, frame = cap.read()
     if not ret:
         break
 
+    # Keep a clean copy of the original frame for ball detection
+    original_frame = frame.copy()
+
+    # Ball detection on original frame (before grid overlay)
+    if detect_balls:
+        ball_data = find_ping_pong_balls(original_frame, grid_overlay)
+        frame = draw_ball_detections(frame, ball_data)
+
+        # Display ball coordinates
+        white_txt = f"White: {len(ball_data['white_balls']['grid'])} balls"
+        orange_txt = f"Orange: {len(ball_data['orange_balls']['grid'])} balls"
+        cv2.putText(frame, white_txt, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        cv2.putText(frame, orange_txt, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
+
+    # Draw grid overlay after ball detection
     frame = grid_overlay.draw(frame)
 
     # Connection Status Display
     status_text = "Press 'C' to Connect" if not connected.is_set() else "Connected"
     cv2.putText(frame, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
+
+    # Ball detection status
+    detection_status = "Ball Detection: ON" if detect_balls else "Ball Detection: OFF (Press 'D')"
+    cv2.putText(frame, detection_status, (frame.shape[1] - 300, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
 
     cv2.imshow(WINDOW_NAME, frame)
 
@@ -154,6 +186,12 @@ while True:
     elif key == ord('c') and not connected.is_set():
         connection_failed.clear()
         threading.Thread(target=connect_to_robot, daemon=True).start()
+    elif key == ord('d'):
+        detect_balls = not detect_balls
+        if detect_balls:
+            print("Ball detection enabled")
+        else:
+            print("Ball detection disabled")
 
 # --- Cleanup ---
 cap.release()
