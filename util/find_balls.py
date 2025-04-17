@@ -56,11 +56,10 @@ def find_ping_pong_balls(frame, grid_overlay, model_path='models/model1.pt'):
             center_x = int((x1 + x2) / 2)
             center_y = int((y1 + y2) / 2)
 
-            # Assuming class 0 is white ball and class 1 is orange ball
-            # (adjust based on your actual model classes)
-            if cls_id == 0:  # White ball
+            # Swap the class IDs to match the actual model
+            if cls_id == 1:  # White ball (was 0)
                 white_balls_pixels.append((center_x, center_y))
-            elif cls_id == 1:  # Orange ball
+            elif cls_id == 0:  # Orange ball (was 1)
                 orange_balls_pixels.append((center_x, center_y))
 
     # Map pixel coordinates to grid coordinates
