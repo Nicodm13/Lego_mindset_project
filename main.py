@@ -11,7 +11,7 @@ from robot.grid import Grid
 from util.grid_overlay import GridOverlay
 
 # --- Global Variables ---
-robot_ip = "192.168.112.19"
+robot_ip = "192.168.64.19"
 robot_port = 9999
 start_node = None
 target_node = None
