@@ -16,3 +16,9 @@ class Node:
 
     def __gt__(self, other):
         return self.f_cost > other.f_cost
+
+    def reset(self):
+        self.parent = None
+        self.g_cost = float('inf')
+        self.h_cost = float('inf')
+        self.f_cost = float('inf')
