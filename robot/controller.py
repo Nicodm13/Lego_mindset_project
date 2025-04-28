@@ -19,6 +19,8 @@ DEFAULT_HEADING = 0 # North
 class Controller:
     def __init__(self, grid: Grid):
         self.grid = grid
+        self.robot_width = 120 # mm
+        self.robot_length = 150 # mm
         
         # Physical specifications
         self.wheel_diameter = 55 # millimeters
@@ -41,7 +43,7 @@ class Controller:
         self.ev3.screen.print("Controller Ready")
     
     def navigate_to_target(self, start: Node, target: Node):
-        path = AStar.find_path(start, target, self.grid)
+        path = AStar.find_path(start, target, self.grid, self.robot_width, self.robot_length)
         if path and len(path) >= 2:
             self.follow_path(path)
         else:
@@ -145,29 +147,39 @@ class Controller:
         print("WARNING: Wall too close, stopping and continuing")
             
         
-    def rotate_to(self, target_angle: float, speed: int = 100):
-        """Rotate robot to a specific angle."""
+    def rotate_to(self, target_angle: float, base_speed: int = 100):
+        """Rotate robot to a specific heading angle in degrees.
+
+        Args:
+            target_angle (float): The target heading (0-360 degrees).
+            base_speed (int, optional): Maximum speed during rotation. Defaults to 100.
+        """
+        # Calculate the minimal angle difference
         angle_diff = (target_angle - self.current_heading) % 360
         if angle_diff > 180:
-            angle_diff -= 360  # Shortest path
+            angle_diff -= 360  # Rotate shortest path
 
         if angle_diff == 0:
-            return  # Already aligned¨
+            return  # Already facing the right direction
 
-        # Reset gyro
+        # Reset gyro sensor to 0
         self.gyro_sensor.reset_angle(0)
 
-        # Start motors
-        if angle_diff > 0:
-            self.left_motor.run(speed)
-            self.right_motor.run(-speed)
-        elif angle_diff < 0:
-            self.left_motor.run(-speed)
-            self.right_motor.run(speed)
+        # Determine rotation direction
+        direction = 1 if angle_diff > 0 else -1
 
-        # Rotate, stop slightly early
-        while abs(self.gyro_sensor.angle()) < abs(angle_diff) - 2:
-            pass
+        while True:
+            current_angle = self.gyro_sensor.angle()
+            remaining = abs(angle_diff) - abs(current_angle)
+
+            if remaining <= 0:
+                break
+
+            # Dynamically reduce speed as we get closer
+            speed = max(30, int(base_speed * (remaining / abs(angle_diff))))
+            
+            self.left_motor.run(speed * direction)
+            self.right_motor.run(-speed * direction)
 
         # Stop motors
         self.left_motor.stop(Stop.BRAKE)
@@ -175,6 +187,7 @@ class Controller:
 
         # Update heading
         self.current_heading = target_angle % 360
+
 
     def start_spinner(self, speed: int = 500):
         """Start spinning the spinner motor continuously."""
