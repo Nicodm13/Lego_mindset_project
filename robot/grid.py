@@ -22,13 +22,13 @@ class Grid:
             return self.grid[x][y]
         return None
 
-    def get_neighbours(self, node: Node):
+    def get_neighbours(self, node: Node, robot_width = 0, robot_length = 0):
         neighbours = []
 
         for _, (dx, dy) in Direction.ALL_DIRECTIONS:
             nx, ny = node.x + dx, node.y + dy
             neighbour = self.get_node(nx, ny)
-            if neighbour and self.is_walkable(neighbour):
+            if neighbour and self.is_walkable(neighbour, robot_width, robot_length):
                 neighbours.append(neighbour)
 
         return neighbours
@@ -46,8 +46,24 @@ class Grid:
             # Diagonal move, should never happen
             return float('inf')
 
-    def is_walkable(self, node: Node):
-        return not node.is_obstacle
+    def is_walkable(self, node: Node, robot_width: float = 0, robot_length: float = 0):
+        """Check if a node is walkable, considering robot size."""
+        if node.is_obstacle:
+            return False
+
+        # If robot size is specified, check area around node
+        if robot_width > 0 and robot_length > 0:
+            # Calculate how many nodes robot would cover
+            nodes_per_width = int((robot_width / (self.width / self.density)) / 2)
+            nodes_per_length = int((robot_length / (self.height / self.density)) / 2)
+
+            for dx in range(-nodes_per_width, nodes_per_width + 1):
+                for dy in range(-nodes_per_length, nodes_per_length + 1):
+                    neighbor = self.get_node(node.x + dx, node.y + dy)
+                    if neighbor and neighbor.is_obstacle:
+                        return False
+
+        return True
 
     def add_obstacle(self, node: Node):
         node.is_obstacle = True
