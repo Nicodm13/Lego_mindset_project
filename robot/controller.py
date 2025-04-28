@@ -48,6 +48,11 @@ class Controller:
             self.ev3.screen.print("No path found")
 
     def follow_path(self, path):
+        """Follow a path of nodes by driving to each of them in order.
+
+        Args:
+            path (List[Node]): List of nodes to go to, in order, starting with the node the robot is currently on.
+        """  
         i = 1
         while i < len(path):
             self.move_to(path[i-1], path[i])
