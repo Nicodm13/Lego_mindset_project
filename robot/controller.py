@@ -90,6 +90,8 @@ class Controller:
         self.left_motor.stop()
         self.right_motor.stop()
         
+        self.start_spinner()  # Start spinner when driving begins
+
         distance_limit = 50  # mm
 
         current_angle = self.left_motor.angle()
@@ -118,6 +120,7 @@ class Controller:
 
         self.left_motor.brake()
         self.right_motor.brake()
+        self.stop_spinner()  # Stop spinner after driving ends
 
     def distance_to_angle(self, distance: float) -> float:
         """Convert distance to corresponding motor angle based on wheel circumference.
@@ -135,18 +138,16 @@ class Controller:
         self.left_motor.brake()
         self.right_motor.brake()
         print("WARNING: Wall too close, stopping and continuing")
+            
         
-    
     def rotate_to(self, target_angle: float, speed: int = 100):
-        """Rotate robot to a specific angle.
-
-        Args:
-            target_angle (float): Angle to rotate to in degrees, eg. 315 for perfect NW.
-            speed (int, optional): Speed of wheel rotation in degrees/second. Defaults to 100.
-        """
+        """Rotate robot to a specific angle."""
         angle_diff = (target_angle - self.current_heading) % 360
         if angle_diff > 180:
             angle_diff -= 360  # Shortest path
+
+        if angle_diff == 0:
+            return  # Already aligned¨
 
         # Reset gyro
         self.gyro_sensor.reset_angle(0)
@@ -158,8 +159,6 @@ class Controller:
         elif angle_diff < 0:
             self.left_motor.run(-speed)
             self.right_motor.run(speed)
-        else:
-            return  # Already aligned
 
         # Rotate, stop slightly early
         while abs(self.gyro_sensor.angle()) < abs(angle_diff) - 2:
@@ -171,6 +170,14 @@ class Controller:
 
         # Update heading
         self.current_heading = target_angle % 360
+
+    def start_spinner(self, speed: int = 500):
+        """Start spinning the spinner motor continuously."""
+        self.spinner_motor.run(-speed)
+
+    def stop_spinner(self):
+        """Stop spinning the spinner motor."""
+        self.spinner_motor.stop(Stop.BRAKE)
 
     def start_server(self):
         server_socket = socket.socket()

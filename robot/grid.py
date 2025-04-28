@@ -24,27 +24,27 @@ class Grid:
 
     def get_neighbours(self, node: Node):
         neighbours = []
-        for name, offset in Direction.ALL_DIRECTIONS:
-            dx, dy = offset
+
+        for _, (dx, dy) in Direction.ALL_DIRECTIONS:
             nx, ny = node.x + dx, node.y + dy
             neighbour = self.get_node(nx, ny)
             if neighbour and self.is_walkable(neighbour):
                 neighbours.append(neighbour)
+
         return neighbours
 
     def get_distance(self, node_a: Node, node_b: Node):
         dx = abs(node_a.x - node_b.x)
         dy = abs(node_a.y - node_b.y)
 
-        if dx == dy == 0:
+        if dx + dy == 0:
             return 0
-        elif dy == 0:
-            return self.width / self.density
-        elif dx == 0:
-            return self.height / self.density
+        elif dx + dy == 1:
+            # Cardinal move
+            return (self.width if dx else self.height) / self.density
         else:
-            # Diagonal cost based on physical size
-            return math.sqrt((self.width / self.density) ** 2 + (self.height / self.density) ** 2)
+            # Diagonal move, should never happen
+            return float('inf')
 
     def is_walkable(self, node: Node):
         return not node.is_obstacle

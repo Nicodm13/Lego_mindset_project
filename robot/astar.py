@@ -21,6 +21,11 @@ class AStar:
 
     @staticmethod
     def find_path(start: Node, target: Node, grid: Grid):
+        # Reset nodes
+        for col in grid.grid:
+            for node in col:
+                node.reset()
+
         open_set = []
         heapq.heappush(open_set, (0, start))
         start.g_cost = 0
@@ -50,3 +55,4 @@ class AStar:
                     heapq.heappush(open_set, (neighbor.f_cost, neighbor))
 
         return []  
+
