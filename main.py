@@ -163,6 +163,12 @@ while True:
         cv2.putText(frame, white_txt, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         cv2.putText(frame, orange_txt, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
 
+        # Print coordinates in the grid to console
+        if ball_data['white_balls']['grid']:
+            print("White ball grid coordinates:", ball_data['white_balls']['grid'])
+        if ball_data['orange_balls']['grid']:
+            print("Orange ball grid coordinates:", ball_data['orange_balls']['grid'])
+
     # Draw grid overlay after ball detection
     frame = grid_overlay.draw(frame)
 

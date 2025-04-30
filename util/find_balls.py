@@ -33,7 +33,7 @@ def find_ping_pong_balls(frame, grid_overlay, model_path='models/model1.pt'):
     model = YOLO(model_abs_path)
 
     # Process the frame
-    results = model(frame, imgsz=640)
+    results = model(frame, imgsz=640, verbose=False)
 
     white_balls_pixels = []
     orange_balls_pixels = []
