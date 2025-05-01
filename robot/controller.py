@@ -21,6 +21,7 @@ class Controller:
         self.grid = grid
         self.robot_width = 120 # mm
         self.robot_length = 150 # mm
+        self.current_node = self.grid.get_node(0,0)
         
         # Physical specifications
         self.wheel_diameter = 55 # millimeters
@@ -36,7 +37,7 @@ class Controller:
         # Initialize Sensors
         self.gyro_sensor = GyroSensor(Port.S2)
         self.gyro_sensor.reset_angle(0)
-        self.us_sensor = UltrasonicSensor(Port.S1)
+        self.us_sensor = UltrasonicSensor(Port.S3)
         self.current_heading = DEFAULT_HEADING
 
         # Display message
@@ -69,6 +70,8 @@ class Controller:
         
         distance = self.grid.get_distance(start, target)
         self.drive(distance)
+
+        self.current_node = target
     
     def move_to_dropoff(self, dropoffset: int):
         """Move the robot to one of the dropoffs.
@@ -85,18 +88,18 @@ class Controller:
                                     # (subtraction as opposed to addition is arbitrary and likely unimportant)
         
         # identify node to navigate to
-        node_y = effective_density / 2
+        node_y = int(effective_density / 2)
 
         i = 0
         if dropoffset > 0:
             i += 1  # such that it starts from the east if east dropoff
-        while not self.grid.grid.is_walkable(self.grid.grid[i * dropoffset][node_y]):
+        while not self.grid.is_walkable(self.grid.grid[i * dropoffset][node_y]):
             i += 1
         
         node_x = i
 
         # move to dropoff
-        self.navigate_to_target(self.grid.grid[node_x, node_y])
+        self.navigate_to_target(self.current_node, self.grid.grid[node_x][node_y])
         
         # rotate mechanism towards dropoff
             # As this has not been designed yet, who knows which direction this is :)
@@ -281,6 +284,20 @@ class Controller:
                         self.navigate_to_target(start_node, target_node)
                     else:
                         self.ev3.screen.print("Invalid MOVE path")
+
+                if command.startswith("DROPOFF"):
+                    parts = command.split()
+                    if len(parts) == 2:
+                        direction = parts[1].upper()
+                        if direction == "WEST":
+                            self.move_to_dropoff(-1)
+                        elif direction == "EAST":
+                            self.move_to_dropoff(1)
+                        else:
+                            self.ev3.screen.print("Invalid DROPOFF dir")
+                    else:
+                        self.ev3.screen.print("Invalid DROPOFF cmd")
+
         except Exception as e:
             self.ev3.screen.print("Error!")
             print("Error:", e)
@@ -292,7 +309,7 @@ class Controller:
 # === MAIN FUNCTION ===
 
 def main():
-    grid = Grid(1800, 1200, 4)
+    grid = Grid(1800, 1200, 11)
     controller = Controller(grid)
     controller.start_server()
 

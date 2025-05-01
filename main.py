@@ -12,7 +12,7 @@ from robot.grid import Grid
 from util.grid_overlay import GridOverlay
 
 # --- Global Variables ---
-robot_ip = "192.168.64.19"
+robot_ip = "192.168.59.19"
 robot_port = 9999
 start_node = None
 target_node = None
@@ -29,7 +29,7 @@ ball_data = {
 }
 
 # --- Grid & Webcam Setup ---
-grid = Grid(1800, 1200, 4)
+grid = Grid(1800, 1200, 11)
 
 
 def handle_obstacle_marked(gx, gy):
@@ -38,7 +38,7 @@ def handle_obstacle_marked(gx, gy):
         grid.add_obstacle(node)
 
 
-grid_overlay = GridOverlay(1800, 1200, 4, on_mark_obstacle=handle_obstacle_marked)
+grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
 
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
 cap = cv2.VideoCapture(0)
@@ -93,6 +93,7 @@ def start_input_loop():
 
     print("Enter command like:")
     print("  MOVE {1,2} {3,2}")
+    print("  DROPOFF WEST or DROPOFF EAST")
     print("Type 'q' to quit.")
 
     while connected.is_set():
@@ -127,6 +128,21 @@ def start_input_loop():
                     print("Sent command:", command)
                 else:
                     print("Could not parse MOVE command.")
+
+            elif command.startswith("DROPOFF"):
+                parts = command.split()
+                if len(parts) != 2:
+                    print("DROPOFF command requires a direction: WEST or EAST.")
+                    continue
+
+                direction = parts[1].upper()
+                if direction not in ("WEST", "EAST"):
+                    print("Invalid direction. Use WEST or EAST.")
+                    continue
+
+                # Just send the whole command as-is to the robot
+                client_socket.sendall((command + "\n").encode())
+                print("Sent command:", command)
             else:
                 print("Unknown command.")
 
