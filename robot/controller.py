@@ -36,7 +36,7 @@ class Controller:
         # Initialize Sensors
         self.gyro_sensor = GyroSensor(Port.S2)
         self.gyro_sensor.reset_angle(0)
-        self.us_sensor = UltrasonicSensor(Port.S1)
+        self.us_sensor = UltrasonicSensor(Port.S3)
         self.current_heading = DEFAULT_HEADING
 
         # Display message
@@ -261,7 +261,7 @@ class Controller:
 # === MAIN FUNCTION ===
 
 def main():
-    grid = Grid(1800, 1200, 4)
+    grid = Grid(1800, 1200, 12)
     controller = Controller(grid)
     controller.start_server()
 

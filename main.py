@@ -12,7 +12,7 @@ from robot.grid import Grid
 from util.grid_overlay import GridOverlay
 
 # --- Global Variables ---
-robot_ip = "192.168.64.19"
+robot_ip = "192.168.59.19"
 robot_port = 9999
 start_node = None
 target_node = None
@@ -22,14 +22,14 @@ connection_failed = threading.Event()
 connected = threading.Event()
 
 # Ball detection state
-detect_balls = False  # Toggle for ball detection
+detect_balls = True  # Toggle for ball detection
 ball_data = {
     'white_balls': {'pixels': [], 'grid': []},
     'orange_balls': {'pixels': [], 'grid': []}
 }
 
 # --- Grid & Webcam Setup ---
-grid = Grid(1800, 1200, 4)
+grid = Grid(1800, 1200, 12)
 
 
 def handle_obstacle_marked(gx, gy):
@@ -38,7 +38,7 @@ def handle_obstacle_marked(gx, gy):
         grid.add_obstacle(node)
 
 
-grid_overlay = GridOverlay(1800, 1200, 4, on_mark_obstacle=handle_obstacle_marked)
+grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
 
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
 cap = cv2.VideoCapture(0)
