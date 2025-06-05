@@ -54,5 +54,27 @@ class AStar:
                     neighbor.f_cost = neighbor.g_cost + neighbor.h_cost
                     heapq.heappush(open_set, (neighbor.f_cost, neighbor))
 
-        return []  
+        return []
 
+
+    @staticmethod
+    def dijkstra(start: Node, grid: Grid):
+        distances = {start: 0}
+        queue = [(0, start)]
+
+        for col in grid.grid:
+            for node in col:
+                node.reset()
+        start.g_cost = 0
+
+        while queue:
+            cost, current = heapq.heappop(queue)
+            for neighbor in grid.get_neighbours(current):
+                if neighbor.is_obstacle:
+                    continue
+                new_cost = cost + grid.get_distance(current, neighbor)
+                if new_cost < neighbor.g_cost:
+                    neighbor.g_cost = new_cost
+                    distances[neighbor] = new_cost
+                    heapq.heappush(queue, (new_cost, neighbor))
+        return distances

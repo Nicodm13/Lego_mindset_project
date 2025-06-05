@@ -10,11 +10,13 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
 
 from robot.grid import Grid
 from util.grid_overlay import GridOverlay
+from robot.astar import AStar
 
 # --- Global Variables ---
 robot_ip = "192.168.64.19"
 robot_port = 9999
 start_node = None
+visited_balls = set()
 target_node = None
 client_socket = None
 input_ready = threading.Event()
@@ -86,6 +88,17 @@ def connect_to_robot():
         print(f"Failed to connect: {e}")
         connection_failed.set()
 
+# --- Detect 3 closest ping pong balls ---
+def get_closest_n_balls(start_node, ball_coords, n=3):
+    distances = AStar.dijkstra(start_node, grid)
+    targets = []
+
+    for gx, gy in ball_coords:
+        node = grid.get_node(gx, gy)
+        if node and node in distances:
+            targets.append((distances[node], node))
+    targets.sort()
+    return [node for _, node in targets[:n]]
 
 # --- Input Loop Thread ---
 def start_input_loop():
@@ -152,6 +165,7 @@ while True:
     # Keep a clean copy of the original frame for ball detection
     original_frame = frame.copy()
 
+    count = 0
     # Ball detection on original frame (before grid overlay)
     if detect_balls:
         ball_data = find_ping_pong_balls(original_frame, grid_overlay)
@@ -164,11 +178,10 @@ while True:
         cv2.putText(frame, orange_txt, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
 
         # Print coordinates in the grid to console
-        if ball_data['white_balls']['grid']:
-            print("White ball grid coordinates:", ball_data['white_balls']['grid'])
-        if ball_data['orange_balls']['grid']:
-            print("Orange ball grid coordinates:", ball_data['orange_balls']['grid'])
-
+        # if ball_data['white_balls']['grid']:
+            # print("White ball grid coordinates:", ball_data['white_balls']['grid'])
+        # if ball_data['orange_balls']['grid']:
+            # print("Orange ball grid coordinates:", ball_data['orange_balls']['grid'])
     # Draw grid overlay after ball detection
     frame = grid_overlay.draw(frame)
 
@@ -198,6 +211,36 @@ while True:
             print("Ball detection enabled")
         else:
             print("Ball detection disabled")
+    elif key == ord('b'):
+        if not start_node:
+            print("No start node set. Using default (0,0) for testing.")
+            start_node = grid.get_node(0, 0)
+
+        all_balls = ball_data['white_balls']['grid'] + ball_data['orange_balls']['grid']
+        unvisited = [coord for coord in all_balls if coord not in visited_balls]
+
+        if not unvisited:
+            print("No unvisited balls left.")
+            continue
+
+        closest_nodes = get_closest_n_balls(start_node, unvisited, n=3)
+        if not closest_nodes:
+            print("No reachable unvisited balls found.")
+            continue
+
+        for node in closest_nodes:
+            command = f"MOVE {{{start_node.x},{start_node.y}}} {{{node.x},{node.y}}}"
+            if connected.is_set() and client_socket:
+                client_socket.sendall((command + "\n").encode())
+                print("Sent to robot:", command)
+            else:
+                print("[Simulated] " + command)
+            visited_balls.add((node.x, node.y))
+            start_node = node
+    elif key == ord('r'):
+        visited_balls.clear()
+        start_node = grid.get_node(0, 0)
+        print("Visited balls cleared and Start node set to 0,0.")
 
 # --- Cleanup ---
 cap.release()
