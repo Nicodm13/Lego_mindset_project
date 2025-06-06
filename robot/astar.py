@@ -21,7 +21,7 @@ class AStar:
         return path[::-1]
 
     @staticmethod
-    def find_path(start: Node, target: Node, grid: Grid):
+    def find_path(start: Node, target: Node, grid: Grid, robot_width = 0, robot_length = 0):
         # Reset nodes
         for col in grid.grid:
             for node in col:
@@ -42,7 +42,7 @@ class AStar:
 
             closed_set.add((current.x, current.y))
 
-            for neighbor in grid.get_neighbours(current):
+            for neighbor in grid.get_neighbours(current, robot_width, robot_length):
                 if (neighbor.x, neighbor.y) in closed_set:
                     continue
 

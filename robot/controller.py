@@ -19,7 +19,9 @@ DEFAULT_HEADING = 0 # North
 class Controller:
     def __init__(self, grid: Grid):
         self.grid = grid
-        
+        self.robot_width = 120 # mm
+        self.robot_length = 150 # mm
+
         # Physical specifications
         self.wheel_diameter = 55 # millimeters
         
@@ -34,7 +36,7 @@ class Controller:
         # Initialize Sensors
         self.gyro_sensor = GyroSensor(Port.S2)
         self.gyro_sensor.reset_angle(0)
-        self.us_sensor = UltrasonicSensor(Port.S1)
+        self.us_sensor = UltrasonicSensor(Port.S3)
         self.current_heading = DEFAULT_HEADING
 
         # Display message
@@ -46,8 +48,8 @@ class Controller:
         Args:
             start (Node): Node from which the robot starts.
             target (Node): Node to which the robot is to navigate and drive.
-        """        
-        path = AStar.find_path(start, target, self.grid)
+        """
+        path = AStar.find_path(start, target, self.grid, self.robot_width, self.robot_length)
         if path and len(path) >= 2:
             self.follow_path(path)
         else:
@@ -70,7 +72,7 @@ class Controller:
         Args:
             start (Node): Node from which the robot starts.
             target (Node): Neighboring node to which the robot is to navigate and drive.
-        """        
+        """
         xdiff = target.x - start.x
         ydiff = target.y - start.y
         
@@ -79,6 +81,37 @@ class Controller:
         
         distance = self.grid.get_distance(start, target)
         self.drive(distance)
+    
+    def move_to_dropoff(self, dropoffset: int):
+        """Move the robot to one of the dropoffs.
+
+        Args:
+            dropoff (int): The chosen dropoff to go to. `-1` for west dropoff, `1` for east dropoff.
+                           _Also it's a portmanteau of dropoff and offset. Isn't it clever?!_
+        """
+        # density adjustment
+        effective_density = self.grid.density
+        if (effective_density % 2 == 0):
+            print("WARNING: grid density is even -> cannot navigate to middle of grid")
+            effective_density -= 1  # make density even such that it can be divided by 2
+                                    # (subtraction as opposed to addition is arbitrary and likely unimportant)
+        
+        # identify node to navigate to
+        node_y = effective_density / 2
+
+        i = 0
+        if dropoffset > 0:
+            i += 1  # such that it starts from the east if east dropoff
+        while not self.grid.grid.is_walkable(self.grid.grid[i * dropoffset][node_y]):
+            i += 1
+        
+        node_x = i
+
+        # move to dropoff
+        self.navigate_to_target(self.grid.grid[node_x, node_y])
+        
+        # rotate mechanism towards dropoff
+            # As this has not been designed yet, who knows which direction this is :)
 
     def offset_to_angle(self, xdiff: int, ydiff: int) -> int:
         """Convert a rectangular offset to the corresponding angle, eg. `(1, -1)` -> `45`.
@@ -154,40 +187,45 @@ class Controller:
     def on_wall_too_close(self):
         """Behavior triggered when the ultrasonic sensor detects the robot being too close to a wall.
         What "too close" means is defined by the method calling this.
-        """        
+        """
         self.left_motor.brake()
         self.right_motor.brake()
         print("WARNING: Wall too close, stopping and continuing")
             
         
-    def rotate_to(self, target_angle: float, speed: int = 100):
-        """Rotate the robot to a specified angle.
+    def rotate_to(self, target_angle: float, base_speed: int = 100):
+        """Rotate robot to a specific heading angle in degrees.
 
         Args:
-            target_angle (float): Angle (in degrees) to rotate the robot to.
-            speed (int, optional): Speed of the wheels doing the rotation (in degrees/second). Defaults to 100.
+            target_angle (float): The target heading (0-360 degrees).
+            base_speed (int, optional): Maximum speed during rotation. Defaults to 100.
         """
+        # Calculate the minimal angle difference
         angle_diff = (target_angle - self.current_heading) % 360
         if angle_diff > 180:
-            angle_diff -= 360  # Shortest path
+            angle_diff -= 360  # Rotate shortest path
 
         if angle_diff == 0:
-            return  # Already aligned¨
+            return  # Already facing the right direction
 
-        # Reset gyro
+        # Reset gyro sensor to 0
         self.gyro_sensor.reset_angle(0)
 
-        # Start motors
-        if angle_diff > 0:
-            self.left_motor.run(speed)
-            self.right_motor.run(-speed)
-        elif angle_diff < 0:
-            self.left_motor.run(-speed)
-            self.right_motor.run(speed)
+        # Determine rotation direction
+        direction = 1 if angle_diff > 0 else -1
 
-        # Rotate, stop slightly early
-        while abs(self.gyro_sensor.angle()) < abs(angle_diff) - 2:
-            pass
+        while True:
+            current_angle = self.gyro_sensor.angle()
+            remaining = abs(angle_diff) - abs(current_angle)
+
+            if remaining <= 0:
+                break
+
+            # Dynamically reduce speed as we get closer
+            speed = max(30, int(base_speed * (remaining / abs(angle_diff))))
+
+            self.left_motor.run(speed * direction)
+            self.right_motor.run(-speed * direction)
 
         # Stop motors
         self.left_motor.stop(Stop.BRAKE)
@@ -196,22 +234,23 @@ class Controller:
         # Update heading
         self.current_heading = target_angle % 360
 
+
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
 
         Args:
             speed (int, optional): Speed of spinner (in degrees/second). Defaults to 500.
-        """        
+        """
         self.spinner_motor.run(-speed)
 
     def stop_spinner(self):
         """Stop rotating the spinner.
-        """        
+        """
         self.spinner_motor.stop(Stop.BRAKE)
 
     def start_server(self):
         """Starts and runs the server on the robot to receive commands.
-        """        
+        """
         server_socket = socket.socket()
         server_socket.bind(('', ROBOT_PORT))
         server_socket.listen(1)
@@ -275,7 +314,7 @@ class Controller:
 # === MAIN FUNCTION ===
 
 def main():
-    grid = Grid(1800, 1200, 4)
+    grid = Grid(1800, 1200, 12)
     controller = Controller(grid)
     controller.start_server()
 

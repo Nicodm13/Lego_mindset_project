@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
-.venv/
+.venv/¨
+
+astar_test.py
