@@ -114,7 +114,11 @@ class Controller:
             # As this has not been designed yet, who knows which direction this is :)
 
     def creep_forward(self, distance, speed=50):
-        """Drive the robot forward slowly, checking for obstacles.
+        """Drive the robot forward slowly, checking for obstacles. Returns when the robot is close to an
+        obstacle or has driven the specified distance.
+        Args:
+            distance (int): Distance to drive in millimeters.
+            speed (int, optional): Speed of wheel rotation in degrees/second. Defaults to 50.
         """
         self.left_motor.run(speed)
         self.right_motor.run(speed)
