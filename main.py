@@ -4,7 +4,7 @@ import cv2
 import socket
 import threading
 import contextlib
-import sys
+import time
 from util.find_balls import find_ping_pong_balls, draw_ball_detections
 
 # Add robot folder to sys.path
@@ -17,12 +17,15 @@ from pathfinding.astar import AStar
 # --- Global Variables ---
 robot_ip = "192.168.93.19"
 robot_port = 9999
-start_node = None
-visited_balls = set()
-target_node = None
 client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
+
+start_node = None
+visited_balls = set()
+target_node = None
+tsp_path = []
+awaiting_response = False
 
 # Ball detection state
 detect_balls = False
@@ -83,13 +86,29 @@ def connect_to_robot():
         else:
             print("No obstacles to send.")
 
+        threading.Thread(target=listen_for_robot, daemon=True).start()
+
     except Exception as e:
         print(f"Failed to connect: {e}")
         connection_failed.set()
 
-# --- Tracking Move State ---
-ball_targeted = False
-printed_searching = False
+# --- Robot Listener ---
+def listen_for_robot():
+    global awaiting_response
+    try:
+        while connected.is_set():
+            data = client_socket.recv(1024)
+            if not data:
+                print("Connection closed by robot.")
+                connected.clear()
+                break
+            message = data.decode().strip()
+            if message == "DONE":
+                print("Robot reported DONE")
+                awaiting_response = False
+    except Exception as e:
+        print("Error in listener:", e)
+        connected.clear()
 
 # --- Suppress stdout temporarily ---
 @contextlib.contextmanager
@@ -103,6 +122,8 @@ def suppress_stdout():
             sys.stdout = old_stdout
 
 # --- Main Loop ---
+printed_searching = False
+
 while True:
     ret, frame = cap.read()
     if not ret:
@@ -127,12 +148,6 @@ while True:
         cv2.putText(frame, white_txt, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         cv2.putText(frame, orange_txt, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
 
-        # Print coordinates in the grid to console
-        #if ball_data['white_balls']['grid']:
-            #print("White ball grid coordinates:", ball_data['white_balls']['grid'])
-        #if ball_data['orange_balls']['grid']:
-            #print("Orange ball grid coordinates:", ball_data['orange_balls']['grid'])
-
     # Draw grid overlay after ball detection
     frame = grid_overlay.draw(frame)
 
@@ -146,44 +161,39 @@ while True:
         print("Robot connection failed.")
         break
 
-    # --- After detection, send move command ---
-    if connected.is_set() and not ball_targeted:
-        target_coords = None
+    # --- Automated Ball Path Execution ---
+    if connected.is_set() and not awaiting_response:
+        all_balls = ball_data['white_balls']['grid'] + ball_data['orange_balls']['grid']
+        unvisited = [coord for coord in all_balls if coord not in visited_balls]
 
-        if ball_data['white_balls']['grid']:
-            target_coords = ball_data['white_balls']['grid'][0]
-        elif ball_data['orange_balls']['grid']:
-            target_coords = ball_data['orange_balls']['grid'][0]
+        if not tsp_path and unvisited:
+            if not start_node:
+                if grid_overlay.start_point:
+                    sx, sy = grid_overlay.start_point
+                    start_node = grid.get_node(sx, sy)
+                else:
+                    start_node = grid.get_node(3, 3)
+                    print("Default start node used.")
 
-        if target_coords:
-            if grid_overlay.start_point:
-                start_x, start_y = grid_overlay.start_point
-                print(f"Start position: ({start_x, {start_y}})")
-            else:
-                print("No start point set.")
-                continue
+            closest = AStar.get_closest_nodes(start_node, unvisited, grid, n=3)
+            tsp_path.extend(AStar.tsp_brute_force(start_node, closest, grid))
 
-            start_node = grid.get_node(start_x, start_y)
-            target_node = grid.get_node(*target_coords)
-
-            if not start_node or not target_node:
-                print("Invalid start or target node.")
-                continue
-
-            path = AStar.find_path(start_node, target_node, grid)
-
+        if tsp_path:
+            next_node = tsp_path.pop(0)
+            path = AStar.find_path(start_node, next_node, grid)
             if path:
-                path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
-                move_command = f"MOVE {path_str}\n"
                 try:
+                    path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                    move_command = f"MOVE {path_str}\n"
                     client_socket.sendall(move_command.encode())
-                    print(f"Ball found at ({target_node.x},{target_node.y})")
-                    print("Sent command:", move_command.strip())
-                    ball_targeted = True
+                    print(f"Sent MOVE: {move_command.strip()}")
+                    visited_balls.add((next_node.x, next_node.y))
+                    start_node = next_node
+                    awaiting_response = True
                 except Exception as e:
-                    print("Failed to send move command:", e)
+                    print(f"Error sending move: {e}")
             else:
-                print("No valid path found.")
+                print("No valid path to next ball, skipping.")
 
     # --- Key Handling ---
     key = cv2.waitKey(1) & 0xFF
@@ -194,39 +204,13 @@ while True:
         threading.Thread(target=connect_to_robot, daemon=True).start()
     elif key == ord('d'):
         detect_balls = not detect_balls
-        if detect_balls:
-            print("Ball detection enabled")
-        else:
-            print("Ball detection disabled")
-    elif key == ord('b'):
-        if not start_node:
-            print("No start node set. Using default (3,3) for testing.")
-            start_node = grid.get_node(3, 3)
-
-        all_balls = ball_data['white_balls']['grid'] + ball_data['orange_balls']['grid']
-        unvisited = [coord for coord in all_balls if coord not in visited_balls]
-
-        if not unvisited:
-            print("No unvisited balls left.")
-            continue
-
-        closest_nodes = AStar.get_closest_nodes(start_node, unvisited, grid, n=3)
-        best_order = AStar.tsp_brute_force(start_node, closest_nodes, grid)
-
-        for node in best_order:
-            command = f"MOVE {{{start_node.x},{start_node.y}}} {{{node.x},{node.y}}}"
-            if connected.is_set() and client_socket:
-                client_socket.sendall((command + "\n").encode())
-                print("Sent to robot:", command)
-            else:
-                print("[Simulated] " + command)
-
-            visited_balls.add((node.x, node.y))
-            start_node = node
+        print("Ball detection enabled" if detect_balls else "Ball detection disabled")
     elif key == ord('r'):
         visited_balls.clear()
         start_node = grid.get_node(3, 3)
-        print("Visited balls cleared and Start node set to 0,0.")
+        tsp_path.clear()
+        awaiting_response = False
+        print("Visited balls cleared and Start node set to (3,3).")
 
 # --- Cleanup ---
 cap.release()

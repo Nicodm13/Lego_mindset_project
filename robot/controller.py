@@ -23,7 +23,7 @@ class Controller:
         self.robot_width = 120 # mm
         self.robot_length = 150 # mm
         self.wheel_diameter = 55 # millimeters
-        
+
         # Initialize EV3 Brick
         self.ev3 = EV3Brick()
 
@@ -38,9 +38,12 @@ class Controller:
         self.us_sensor = UltrasonicSensor(Port.S1)
         self.current_heading = DEFAULT_HEADING
 
+        # Active socket connection (set in start_server)
+        self.conn = None
+
         # Display message
         self.ev3.screen.print("Controller Ready")
-    
+
     def navigate_to_target(self, path: list[Node]):
         """Follow a given path sent from PC."""
         if path and len(path) >= 2:
@@ -53,12 +56,21 @@ class Controller:
 
         Args:
             path (List[Node]): List of nodes to go to, in order, starting with the node the robot is currently on.
-        """  
+        """
         i = 1
         while i < len(path):
             self.move_to(path[i-1], path[i])
             i += 1
-    
+
+        # Notify PC when done
+        if self.conn:
+            try:
+                print("Trying to send DONE...")
+                self.conn.send(b"DONE\n")
+                print("DONE sent successfully")
+            except Exception as e:
+                print("Failed to send DONE:", e)
+
     def move_to(self, start: Node, target: Node):
         """Rotate and drive to a **neighboring** node.
 
@@ -68,13 +80,13 @@ class Controller:
         """
         xdiff = target.x - start.x
         ydiff = target.y - start.y
-        
+
         angle = self.offset_to_angle(xdiff, ydiff)
         self.rotate_to(angle)
-        
+
         distance = self.grid.get_distance(start, target)
         self.drive(distance)
-    
+
     def move_to_dropoff(self, dropoffset: int):
         """Move the robot to one of the dropoffs.
 
@@ -86,25 +98,21 @@ class Controller:
         effective_density = self.grid.density
         if (effective_density % 2 == 0):
             print("WARNING: grid density is even -> cannot navigate to middle of grid")
-            effective_density -= 1  # make density even such that it can be divided by 2
-                                    # (subtraction as opposed to addition is arbitrary and likely unimportant)
-        
+            effective_density -= 1
+
         # identify node to navigate to
         node_y = effective_density / 2
 
         i = 0
         if dropoffset > 0:
-            i += 1  # such that it starts from the east if east dropoff
+            i += 1
         while not self.grid.grid.is_walkable(self.grid.grid[i * dropoffset][node_y]):
             i += 1
-        
+
         node_x = i
 
         # move to dropoff
         self.navigate_to_target(self.grid.grid[node_x, node_y])
-        
-        # rotate mechanism towards dropoff
-            # As this has not been designed yet, who knows which direction this is :)
 
     def offset_to_angle(self, xdiff: int, ydiff: int) -> int:
         """Convert a rectangular offset to the corresponding angle, eg. `(1, -1)` -> `45`.
@@ -115,13 +123,12 @@ class Controller:
 
         Returns:
             int: Corresponding angle in degrees.
-        """        
+        """
         direction_name = Direction.from_offset(xdiff, ydiff)
         if direction_name:
             return Direction.ANGLE_MAP[direction_name]
         else:
-            return self.current_heading  
-
+            return self.current_heading
 
     def drive(self, distance: float, speed: int = 200):
         """Drive the robot forward. **NB: This implementation does not allow for reversing**.
@@ -132,7 +139,7 @@ class Controller:
         """
         self.left_motor.stop()
         self.right_motor.stop()
-        
+
         self.start_spinner()  # Start spinner when driving begins
 
         distance_limit = 50  # mm
@@ -147,12 +154,12 @@ class Controller:
         while True:
             prev_angle = current_angle
             current_angle = self.left_motor.angle()
-            
+
             if current_angle >= prev_angle:
                 traveled_angle += current_angle - prev_angle
             else:
                 traveled_angle += (360 - prev_angle) + current_angle
-                
+
             if traveled_angle >= goal_angle:
                 break
 
@@ -173,10 +180,10 @@ class Controller:
 
         Returns:
             float: angle for motor to turn in degrees
-        """        
+        """
         degrees_per_mm = 360 / (math.pi * self.wheel_diameter)
         return distance * degrees_per_mm
-    
+
     def on_wall_too_close(self):
         """Behavior triggered when the ultrasonic sensor detects the robot being too close to a wall.
         What "too close" means is defined by the method calling this.
@@ -184,8 +191,7 @@ class Controller:
         self.left_motor.brake()
         self.right_motor.brake()
         print("WARNING: Wall too close, stopping and continuing")
-            
-        
+
     def rotate_to(self, target_angle: float, base_speed: int = 100):
         """Rotate robot to a specific heading angle in degrees.
 
@@ -193,18 +199,14 @@ class Controller:
             target_angle (float): The target heading (0-360 degrees).
             base_speed (int, optional): Maximum speed during rotation. Defaults to 100.
         """
-        # Calculate the minimal angle difference
         angle_diff = (target_angle - self.current_heading) % 360
         if angle_diff > 180:
-            angle_diff -= 360  # Rotate shortest path
+            angle_diff -= 360
 
         if angle_diff == 0:
-            return  # Already facing the right direction
+            return
 
-        # Reset gyro sensor to 0
         self.gyro_sensor.reset_angle(0)
-
-        # Determine rotation direction
         direction = 1 if angle_diff > 0 else -1
 
         while True:
@@ -214,19 +216,15 @@ class Controller:
             if remaining <= 0:
                 break
 
-            # Dynamically reduce speed as we get closer
             speed = max(30, int(base_speed * (remaining / abs(angle_diff))))
 
             self.left_motor.run(speed * direction)
             self.right_motor.run(-speed * direction)
 
-        # Stop motors
         self.left_motor.stop(Stop.BRAKE)
         self.right_motor.stop(Stop.BRAKE)
 
-        # Update heading
         self.current_heading = target_angle % 360
-
 
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
@@ -248,8 +246,9 @@ class Controller:
         server_socket.bind(('', ROBOT_PORT))
         server_socket.listen(1)
         self.ev3.screen.print("Waiting for connection...")
-        
+
         conn, addr = server_socket.accept()
+        self.conn = conn
         self.ev3.screen.clear()
         self.ev3.screen.print("Connected!")
 
@@ -262,7 +261,7 @@ class Controller:
                 command = data.decode().strip()
                 self.ev3.screen.clear()
                 self.ev3.screen.print("Cmd: {}".format(command))
-                
+
                 if command.startswith("INIT"):
                     parts = command.split()
                     if len(parts) == 4:
