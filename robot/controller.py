@@ -72,7 +72,13 @@ class Controller:
                 # ignore ball
                 if i == 0 and j == 0:
                     continue
-                if self.grid.get_node(x+i, y+j).is_obstacle:
+                # determine obstacle presence
+                is_out_of_bounds = not (0 <= x+i < self.grid.density and 0 <= y+j < self.grid.density)
+                has_obstacle = False
+                if is_out_of_bounds == False:
+                    has_obstacle = self.grid.get_node(x+i, y+j).is_obstacle
+
+                if has_obstacle or is_out_of_bounds:
                     # INNER CIRCLE
                     if -halfsize <= i <= halfsize and -halfsize <= j <= halfsize:
                         if i != 0 and j != 0: # if corner
