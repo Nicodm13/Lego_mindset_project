@@ -2,7 +2,6 @@ from node import Node
 from grid import Grid
 
 import heapq
-from itertools import permutations
 
 class AStar:
     @staticmethod
@@ -57,7 +56,6 @@ class AStar:
 
         return []
 
-
     @staticmethod
     def dijkstra(start: Node, grid: Grid):
         distances = {start: 0}
@@ -98,7 +96,7 @@ class AStar:
         best_order = None
         min_cost = float('inf')
 
-        for perm in permutations(targets):
+        for perm in AStar.permutations(targets):
             total_cost = 0
             current = start_node
             for node in perm:
@@ -113,3 +111,28 @@ class AStar:
                 best_order = perm
 
         return list(best_order)
+
+    @staticmethod
+    def permutations(iterable, r=None):
+        pool = tuple(iterable)
+        n = len(pool)
+        r = n if r is None else r
+        if r > n:
+            return
+        indices = list(range(n))
+        cycles = list(range(n, n - r, -1))
+        yield tuple(pool[i] for i in indices[:r])
+        while n:
+            for i in reversed(range(r)):
+                cycles[i] -= 1
+                if cycles[i] == 0:
+                    indices[i:] = indices[i+1:] + indices[i:i+1]
+                    cycles[i] = n - i
+                else:
+                    j = cycles[i]
+                    indices[i], indices[-j] = indices[-j], indices[i]
+                    yield tuple(pool[i] for i in indices[:r])
+                    break
+            else:
+                return
+

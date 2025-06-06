@@ -19,10 +19,10 @@ DEFAULT_HEADING = 0 # North
 class Controller:
     def __init__(self, grid: Grid):
         self.grid = grid
-        self.robot_width = 120 # mm
-        self.robot_length = 150 # mm
 
         # Physical specifications
+        self.robot_width = 120 # mm
+        self.robot_length = 150 # mm
         self.wheel_diameter = 55 # millimeters
         
         # Initialize EV3 Brick
@@ -36,7 +36,7 @@ class Controller:
         # Initialize Sensors
         self.gyro_sensor = GyroSensor(Port.S2)
         self.gyro_sensor.reset_angle(0)
-        self.us_sensor = UltrasonicSensor(Port.S3)
+        self.us_sensor = UltrasonicSensor(Port.S1)
         self.current_heading = DEFAULT_HEADING
 
         # Display message
@@ -314,7 +314,7 @@ class Controller:
 # === MAIN FUNCTION ===
 
 def main():
-    grid = Grid(1800, 1200, 12)
+    grid = Grid(1800, 1200, 17)
     controller = Controller(grid)
     controller.start_server()
 

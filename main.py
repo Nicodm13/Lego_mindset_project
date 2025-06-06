@@ -15,7 +15,7 @@ from util.grid_overlay import GridOverlay
 from robot.astar import AStar
 
 # --- Global Variables ---
-robot_ip = "192.168.59.19"
+robot_ip = "192.168.93.19"
 robot_port = 9999
 start_node = None
 visited_balls = set()
@@ -32,7 +32,7 @@ ball_data = {
 }
 
 # --- Grid & Webcam Setup ---
-grid = Grid(1800, 1200, 12)
+grid = Grid(1800, 1200, 17)
 
 def handle_obstacle_marked(gx, gy):
     node = grid.get_node(gx, gy)
@@ -123,10 +123,10 @@ while True:
         cv2.putText(frame, orange_txt, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
 
         # Print coordinates in the grid to console
-        if ball_data['white_balls']['grid']:
-            print("White ball grid coordinates:", ball_data['white_balls']['grid'])
-        if ball_data['orange_balls']['grid']:
-            print("Orange ball grid coordinates:", ball_data['orange_balls']['grid'])
+        #if ball_data['white_balls']['grid']:
+            #print("White ball grid coordinates:", ball_data['white_balls']['grid'])
+        #if ball_data['orange_balls']['grid']:
+            #print("Orange ball grid coordinates:", ball_data['orange_balls']['grid'])
 
     # Draw grid overlay after ball detection
     frame = grid_overlay.draw(frame)
@@ -151,7 +151,7 @@ while True:
             target_coords = ball_data['orange_balls']['grid'][0]
 
         if target_coords:
-            start_x, start_y = 2, 3  # Assume start at (0,0)
+            start_x, start_y = 3, 3  # Assume start at (0,0)
             target_x, target_y = target_coords
 
             move_command = f"MOVE {{{start_x},{start_y}}} {{{target_x},{target_y}}}\n"
@@ -178,8 +178,8 @@ while True:
             print("Ball detection disabled")
     elif key == ord('b'):
         if not start_node:
-            print("No start node set. Using default (0,0) for testing.")
-            start_node = grid.get_node(0, 0)
+            print("No start node set. Using default (3,3) for testing.")
+            start_node = grid.get_node(3, 3)
 
         all_balls = ball_data['white_balls']['grid'] + ball_data['orange_balls']['grid']
         unvisited = [coord for coord in all_balls if coord not in visited_balls]
@@ -203,7 +203,7 @@ while True:
             start_node = node
     elif key == ord('r'):
         visited_balls.clear()
-        start_node = grid.get_node(0, 0)
+        start_node = grid.get_node(3, 3)
         print("Visited balls cleared and Start node set to 0,0.")
 
 # --- Cleanup ---
