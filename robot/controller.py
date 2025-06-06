@@ -47,6 +47,11 @@ class Controller:
             start (Node): Node from which the robot starts.
             target (Node): Node at which the ball is, near to which the robot will navigate.
         """
+        def sign(x: int):
+            if x == 0:
+                return 0
+            return x / abs(x)
+        
         blocked_sides = []
         size = 3 # size of robot in square diameter. Get this number from elsewhere when code is merged.
         halfsize = math.floor(size / 2)
@@ -60,68 +65,72 @@ class Controller:
             # if corner: ignore
             # if side is blocked: don't come from this side
         
-        # this code is shit
-        # Determine available sides
+        # DETERMINE BLOCKED SIDES
         for i in range(-size, size+1):
             for j in range(-size, size+1):
-                # inner circle
-                if -halfsize <= i <= halfsize and -halfsize <= j <= halfsize:
-                    if self.grid.get_node(x+i, y+j).is_obstacle:
-                        if i < 0: blocked_sides.append(Direction.WEST)
-                        elif i > 0: blocked_sides.append(Direction.EAST)
-                        if j < 0: blocked_sides.append(Direction.NORTH)
-                        elif j > 0: blocked_sides.append(Direction.SOUTH)
-                # outer circle
-                else:
-                    if (i < -halfsize or i > halfsize) and (j < -halfsize or j > halfsize):
-                        continue
-                    elif self.grid.get_node(x+i, y+j).is_obstacle:
+                # ignore ball
+                if i == 0 and j == 0:
+                    continue
+                if self.grid.get_node(x+i, y+j).is_obstacle:
+                    # INNER CIRCLE
+                    if -halfsize <= i <= halfsize and -halfsize <= j <= halfsize:
+                        if i != 0 and j != 0: # if corner
+                            # add corner's sides
+                            blocked_sides.append((sign(i), 0)) # REMEMBER TO CHANGE TO SIGN INSTEAD OF I
+                            blocked_sides.append((0, sign(j)))
+                        elif i == 0: # if horizontal wall
+                            # add all sides but opposite side
+                            blocked_sides.append((sign(i), 0))
+                            blocked_sides.append((0, sign(j)))
+                            blocked_sides.append((0, sign(-j)))
+                        elif j == 0: # if vertical side
+                            # add all sides but opposite side
+                            blocked_sides.append((0, sign(j)))
+                            blocked_sides.append((sign(i), 0))
+                            blocked_sides.append((sign(-i), 0))
+                    # OUTER CIRCLE
+                    else:
+                        # ignore corners
+                        if (i < -halfsize or i > halfsize) and (j < -halfsize or j > halfsize):
+                            continue
                         if i < -halfsize: blocked_sides.append(Direction.WEST)
                         elif i > halfsize: blocked_sides.append(Direction.EAST)
                         if j < -halfsize: blocked_sides.append(Direction.NORTH)
                         elif j > halfsize: blocked_sides.append(Direction.SOUTH)
         
-        # Decide side to come from
+        # DECIDE SIDE TO COME FROM
+            # determine available directions
+        all_directions = [Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST]
+        available_directions = [d for d in all_directions if d not in blocked_sides]
         
-        # Select good side if can
-        # Select any side otherwise
+        if available_directions.count == 0:
+            pass # give up
         
+            # calculate offsets of start compared to ball
         offset_x = start.x - ball.x
-        offset_x = offset_x / abs(offset_x)
+        if (offset_x != 0):
+            offset_x = offset_x / abs(offset_x)
+            
         offset_y = start.y - ball.y
-        offset_y = offset_y / abs(offset_y)
+        if (offset_y != 0):
+            offset_y = offset_y / abs(offset_y)
         
-        if (offset_x, 0) in blocked_sides
+            # decide side to come from
+        if (offset_x, 0) in available_directions: # come from a fitting side if possible
+            from_direction = (offset_x, 0)
+        elif (0, offset_y) in available_directions:
+            from_direction = (0, offset_y)
+        else: # else, come from any available side
+            from_direction = available_directions[0]
         
-        if start.x < ball.x and Direction.WEST not in blocked_sides:
-            come_from = Direction.WEST
-        elif start.x > ball.x and Direction.EAST not in blocked_sides:
-            come_from = Direction.EAST
-        elif start.y < ball.y and Direction.NORTH not in blocked_sides:
-            come_from = Direction.NORTH
-        elif start.y > ball.y and Direction.SOUTH not in blocked_sides:
-            come_from = Direction.SOUTH
-        
-        else:
-            if Direction.NORTH not in blocked_sides:
-                come_from = Direction.NORTH
-            elif Direction.SOUTH not in blocked_sides:
-                come_from = Direction.SOUTH
-            elif Direction.WEST not in blocked_sides:
-                come_from = Direction.WEST
-            elif Direction.EAST not in blocked_sides:
-                come_from = Direction.EAST
-            else:
-                pass # give the fuck up
-        
-        # Come from it
-        new_x = ball.x + (come_from[0] * (halfsize + 1))
-        new_y = ball.y + (come_from[1] * (halfsize + 1))
+        # START NAVIGATION
+        new_x = ball.x + (from_direction[0] * (halfsize + 1))
+        new_y = ball.y + (from_direction[1] * (halfsize + 1))
         new_target = self.grid.get_node(new_x, new_y)
         
-        new_rotation = tuple(-x for x in come_from)
+        new_rotation = tuple(-x for x in from_direction)
         
-        # Do the things
+            # start
         self.navigate_to_target(start, new_target)
         self.rotate_to(new_rotation)
     
