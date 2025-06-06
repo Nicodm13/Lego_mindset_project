@@ -42,6 +42,14 @@ class Controller:
     
     def go_to_near_ball(self, start: Node, ball: Node):
         """Navigates to a tile near the ball, such that a future method can pick up the ball from a consistent distance from it.
+        
+        The method considers:
+        - for the "**inner circle**", i.e. the robot-sized square around the ball (diameter same as robot):
+            - **if a side has an obstacle:** all sides but opposite are blocked (the robot cannot access the ball from the same or perpendicular sides)
+            - **if a corner has an obstacle:** the corner's two sides are blocked (obstacle is in front of the robot from those two sides, but behind the ball from the other two)
+        - for the "**outer circle**", i.e. the area consisting of where the robot could be around the ball (diamater double the robot's + 1):
+            - **if corner:** ignore (whether this has an obstacle is irrelevant for determining the sides from which the robot can access the ball)
+            - **if side has obstacle:** this side is blocked (the robot cannot access the ball from this side because it would hit an obstacle)
 
         Args:
             start (Node): Node from which the robot starts.
@@ -57,13 +65,6 @@ class Controller:
         halfsize = math.floor(size / 2)
         x = ball.x
         y = ball.y
-        
-        # for inner circle:
-            # if side is blocked: go from opposite
-            # if two sides blocked: give up
-        # for outer circle
-            # if corner: ignore
-            # if side is blocked: don't come from this side
         
         # DETERMINE BLOCKED SIDES
         for i in range(-size, size+1):
