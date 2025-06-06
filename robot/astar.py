@@ -2,6 +2,7 @@ from node import Node
 from grid import Grid
 
 import heapq
+from itertools import permutations
 
 class AStar:
     @staticmethod
@@ -78,3 +79,37 @@ class AStar:
                     distances[neighbor] = new_cost
                     heapq.heappush(queue, (new_cost, neighbor))
         return distances
+
+    @staticmethod
+    def get_closest_nodes(start_node, ball_coords, grid, n=3):
+        distances = AStar.dijkstra(start_node, grid)
+        valid = []
+
+        for gx, gy in ball_coords:
+            node = grid.get_node(gx, gy)
+            if node and node in distances:
+                valid.append((distances[node], node))
+
+        valid.sort()
+        return [node for _, node in valid[:n]]
+
+    @staticmethod
+    def tsp_brute_force(start_node, targets, grid):
+        best_order = None
+        min_cost = float('inf')
+
+        for perm in permutations(targets):
+            total_cost = 0
+            current = start_node
+            for node in perm:
+                path = AStar.find_path(current, node, grid)
+                if not path:
+                    total_cost = float('inf')
+                    break
+                total_cost += len(path)
+                current = node
+            if total_cost < min_cost:
+                min_cost = total_cost
+                best_order = perm
+
+        return list(best_order)

@@ -43,7 +43,7 @@ def handle_obstacle_marked(gx, gy):
 grid_overlay = GridOverlay(1800, 1200, 4, on_mark_obstacle=handle_obstacle_marked)
 
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 ret, frame = cap.read()
 if not ret:
     print("Webcam couldn't be opened.")
@@ -87,18 +87,6 @@ def connect_to_robot():
     except Exception as e:
         print(f"Failed to connect: {e}")
         connection_failed.set()
-
-# --- Detect 3 closest ping pong balls ---
-def get_closest_n_balls(start_node, ball_coords, n=3):
-    distances = AStar.dijkstra(start_node, grid)
-    targets = []
-
-    for gx, gy in ball_coords:
-        node = grid.get_node(gx, gy)
-        if node and node in distances:
-            targets.append((distances[node], node))
-    targets.sort()
-    return [node for _, node in targets[:n]]
 
 # --- Input Loop Thread ---
 def start_input_loop():
@@ -223,18 +211,17 @@ while True:
             print("No unvisited balls left.")
             continue
 
-        closest_nodes = get_closest_n_balls(start_node, unvisited, n=3)
-        if not closest_nodes:
-            print("No reachable unvisited balls found.")
-            continue
+        closest_nodes = AStar.get_closest_nodes(start_node, unvisited, grid, n=3)
+        best_order = AStar.tsp_brute_force(start_node, closest_nodes, grid)
 
-        for node in closest_nodes:
+        for node in best_order:
             command = f"MOVE {{{start_node.x},{start_node.y}}} {{{node.x},{node.y}}}"
             if connected.is_set() and client_socket:
                 client_socket.sendall((command + "\n").encode())
                 print("Sent to robot:", command)
             else:
                 print("[Simulated] " + command)
+
             visited_balls.add((node.x, node.y))
             start_node = node
     elif key == ord('r'):
