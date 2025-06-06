@@ -63,11 +63,6 @@ def connect_to_robot():
         print("Connected to robot!")
         connected.set()
 
-        # Send initialize command with grid settings
-        init_msg = f"INIT {grid.width} {grid.height} {grid.density}\n"
-        client_socket.sendall(init_msg.encode())
-        print(f"Sent: {init_msg.strip()}")
-
         # Send obstacles
         obstacle_nodes = [
             node
@@ -156,7 +151,10 @@ while True:
             target_coords = ball_data['orange_balls']['grid'][0]
 
         if target_coords:
-            start_x, start_y = 3, 3  # Assume start at (0,0)
+            # Use user-defined start point
+            if grid_overlay.start_point:
+                start_x, start_y = grid_overlay.start_point
+
             target_x, target_y = target_coords
 
             move_command = f"MOVE {{{start_x},{start_y}}} {{{target_x},{target_y}}}\n"

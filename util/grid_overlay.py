@@ -9,7 +9,7 @@ class GridOverlay:
         self.handle_size = 10
         self.corners = [(100, 100), (300, 100), (300, 300), (100, 300)]
         self.obstacles = []
-        self.start_point = None  #
+        self.start_point = None 
         self.dragging_point = -1
         self.matrix = None
         self.on_mark_obstacle = on_mark_obstacle
