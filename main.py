@@ -3,6 +3,8 @@ import sys
 import cv2
 import socket
 import threading
+import contextlib
+import sys
 from util.find_balls import find_ping_pong_balls, draw_ball_detections
 
 # Add robot folder to sys.path
@@ -14,15 +16,12 @@ from util.grid_overlay import GridOverlay
 # --- Global Variables ---
 robot_ip = "192.168.59.19"
 robot_port = 9999
-start_node = None
-target_node = None
 client_socket = None
-input_ready = threading.Event()
 connection_failed = threading.Event()
 connected = threading.Event()
 
 # Ball detection state
-detect_balls = True  # Toggle for ball detection
+detect_balls = False  # <-- Start as False
 ball_data = {
     'white_balls': {'pixels': [], 'grid': []},
     'orange_balls': {'pixels': [], 'grid': []}
@@ -31,12 +30,10 @@ ball_data = {
 # --- Grid & Webcam Setup ---
 grid = Grid(1800, 1200, 12)
 
-
 def handle_obstacle_marked(gx, gy):
     node = grid.get_node(gx, gy)
     if node:
         grid.add_obstacle(node)
-
 
 grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
 
@@ -52,8 +49,7 @@ WINDOW_NAME = "Webcam Feed"
 cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
 cv2.setMouseCallback(WINDOW_NAME, grid_overlay.mouse_events)
 
-
-# --- Connection Thread ---
+# --- Robot Connection Thread ---
 def connect_to_robot():
     global client_socket
     print(f"Connecting to robot at {robot_ip}:{robot_port}...")
@@ -62,17 +58,14 @@ def connect_to_robot():
         client_socket.connect((robot_ip, robot_port))
         print("Connected to robot!")
         connected.set()
-        input_ready.set()
 
-        # Send all obstacles in one OBSTACLE command
-        print("Sending obstacles to robot...")
+        # Send obstacles
         obstacle_nodes = [
             node
             for col in grid.grid
             for node in col
             if node.is_obstacle
         ]
-
         if obstacle_nodes:
             obstacle_str = " ".join(f"{{{n.x},{n.y}}}" for n in obstacle_nodes)
             msg = f"OBSTACLE {obstacle_str}\n"
@@ -81,67 +74,24 @@ def connect_to_robot():
         else:
             print("No obstacles to send.")
 
-        start_input_loop()
     except Exception as e:
         print(f"Failed to connect: {e}")
         connection_failed.set()
 
+# --- Tracking Move State ---
+ball_targeted = False
+printed_searching = False
 
-# --- Input Loop Thread ---
-def start_input_loop():
-    global start_node, target_node, client_socket
-
-    print("Enter command like:")
-    print("  MOVE {1,2} {3,2}")
-    print("Type 'q' to quit.")
-
-    while connected.is_set():
+# --- Suppress stdout temporarily ---
+@contextlib.contextmanager
+def suppress_stdout():
+    with open(os.devnull, 'w') as fnull:
+        old_stdout = sys.stdout
+        sys.stdout = fnull
         try:
-            command = input("Command: ").strip()
-            if command.lower() == 'q':
-                break
-
-            if command.startswith("MOVE"):
-                coords = command.split()[1:]
-                if len(coords) != 2:
-                    print("MOVE requires exactly 2 coordinates: START and TARGET.")
-                    continue
-
-                parsed = []
-                for c in coords:
-                    c = c.strip("{}")
-                    try:
-                        x, y = map(int, c.split(","))
-                        node = grid.get_node(x, y)
-                        if node is None:
-                            raise ValueError()
-                        parsed.append(node)
-                    except:
-                        print(f"Invalid coordinate: {c}")
-                        break
-
-                if len(parsed) == 2:
-                    start_node = parsed[0]
-                    target_node = parsed[1]
-                    client_socket.sendall((command + "\n").encode())
-                    print("Sent command:", command)
-                else:
-                    print("Could not parse MOVE command.")
-            else:
-                print("Unknown command.")
-
-        except Exception as e:
-            print("Error:", e)
-            break
-
-    connected.clear()
-    input_ready.clear()
-    try:
-        client_socket.close()
-    except:
-        pass
-    print("Disconnected from robot.")
-
+            yield
+        finally:
+            sys.stdout = old_stdout
 
 # --- Main Loop ---
 while True:
@@ -149,12 +99,17 @@ while True:
     if not ret:
         break
 
-    # Keep a clean copy of the original frame for ball detection
     original_frame = frame.copy()
 
-    # Ball detection on original frame (before grid overlay)
-    if detect_balls:
-        ball_data = find_ping_pong_balls(original_frame, grid_overlay)
+    # Only detect balls after connected
+    if connected.is_set():
+        if not printed_searching:
+            print("Searching for balls...")
+            printed_searching = True
+
+        with suppress_stdout():
+            ball_data = find_ping_pong_balls(original_frame, grid_overlay)
+
         frame = draw_ball_detections(frame, ball_data)
 
         # Display ball coordinates
@@ -172,13 +127,9 @@ while True:
     # Draw grid overlay after ball detection
     frame = grid_overlay.draw(frame)
 
-    # Connection Status Display
+    # Connection and detection status
     status_text = "Press 'C' to Connect" if not connected.is_set() else "Connected"
     cv2.putText(frame, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
-
-    # Ball detection status
-    detection_status = "Ball Detection: ON" if detect_balls else "Ball Detection: OFF (Press 'D')"
-    cv2.putText(frame, detection_status, (frame.shape[1] - 300, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
 
     cv2.imshow(WINDOW_NAME, frame)
 
@@ -186,18 +137,35 @@ while True:
         print("Robot connection failed.")
         break
 
+    # --- After detection, send move command ---
+    if connected.is_set() and not ball_targeted:
+        target_coords = None
+
+        if ball_data['white_balls']['grid']:
+            target_coords = ball_data['white_balls']['grid'][0]
+        elif ball_data['orange_balls']['grid']:
+            target_coords = ball_data['orange_balls']['grid'][0]
+
+        if target_coords:
+            start_x, start_y = 2, 3  # Assume start at (0,0)
+            target_x, target_y = target_coords
+
+            move_command = f"MOVE {{{start_x},{start_y}}} {{{target_x},{target_y}}}\n"
+            try:
+                client_socket.sendall(move_command.encode())
+                print(f"Ball found at ({target_x},{target_y})")
+                print("Sent command:", move_command.strip())
+                ball_targeted = True
+            except Exception as e:
+                print("Failed to send move command:", e)
+
+    # --- Key Handling ---
     key = cv2.waitKey(1) & 0xFF
     if key == ord('q'):
         break
     elif key == ord('c') and not connected.is_set():
         connection_failed.clear()
         threading.Thread(target=connect_to_robot, daemon=True).start()
-    elif key == ord('d'):
-        detect_balls = not detect_balls
-        if detect_balls:
-            print("Ball detection enabled")
-        else:
-            print("Ball detection disabled")
 
 # --- Cleanup ---
 cap.release()
