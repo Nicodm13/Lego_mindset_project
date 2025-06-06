@@ -63,6 +63,7 @@ def connect_to_robot():
         print("Connected to robot!")
         connected.set()
 
+        # Initialize the robot
         init_command = f"INIT {grid.width} {grid.height} {grid.density}\n"
         client_socket.sendall(init_command.encode())
         print(f"Sent: {init_command.strip()}")

@@ -44,19 +44,23 @@ class GridOverlay:
             warped = cv2.perspectiveTransform(cell.reshape(-1, 1, 2), self.matrix).reshape(-1, 2).astype(int)
             cv2.fillPoly(frame, [warped], (0, 255, 0))
 
-        # Draw coordinate labels
+                # Draw X coordinate labels (top of grid)
         for gx in range(self.grid_cols):
-            for gy in range(self.grid_rows):
-                cell = np.float32([
-                    [gx / self.grid_cols, gy / self.grid_rows],
-                    [(gx + 1) / self.grid_cols, gy / self.grid_rows],
-                    [(gx + 1) / self.grid_cols, (gy + 1) / self.grid_rows],
-                    [gx / self.grid_cols, (gy + 1) / self.grid_rows]
-                ]) * 100
-                warped = cv2.perspectiveTransform(cell.reshape(-1, 1, 2), self.matrix).reshape(-1, 2).astype(int)
-                center = np.mean(warped, axis=0).astype(int)
-                label = f"({gx},{gy})"
-                cv2.putText(frame, label, tuple(center), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
+            label = str(gx)
+            alpha = (gx + 0.5) / self.grid_cols
+            top = (1 - alpha) * src[0] + alpha * src[1]
+            warped_top = cv2.perspectiveTransform(np.float32([top]).reshape(-1, 1, 2) * 100, self.matrix)[0][0]
+            cv2.putText(frame, label, tuple(warped_top.astype(int) - [0, 10]),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+
+        # Draw Y coordinate labels (left of grid)
+        for gy in range(self.grid_rows):
+            label = str(gy)
+            beta = (gy + 0.5) / self.grid_rows
+            left = (1 - beta) * src[0] + beta * src[3]
+            warped_left = cv2.perspectiveTransform(np.float32([left]).reshape(-1, 1, 2) * 100, self.matrix)[0][0]
+            cv2.putText(frame, label, tuple(warped_left.astype(int) - [25, 0]),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
         # Draw vertical lines
         for i in range(1, self.grid_cols):
