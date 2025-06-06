@@ -1,5 +1,5 @@
-from node import Node
-from grid import Grid
+from robot.node import Node
+from robot.grid import Grid
 
 import heapq
 

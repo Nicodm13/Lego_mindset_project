@@ -12,7 +12,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
 
 from robot.grid import Grid
 from util.grid_overlay import GridOverlay
-from robot.astar import AStar
+from pathfinding.astar import AStar
 
 # --- Global Variables ---
 robot_ip = "192.168.93.19"
@@ -25,7 +25,7 @@ connection_failed = threading.Event()
 connected = threading.Event()
 
 # Ball detection state
-detect_balls = False  # <-- Start as False
+detect_balls = False
 ball_data = {
     'white_balls': {'pixels': [], 'grid': []},
     'orange_balls': {'pixels': [], 'grid': []}
@@ -62,6 +62,10 @@ def connect_to_robot():
         client_socket.connect((robot_ip, robot_port))
         print("Connected to robot!")
         connected.set()
+
+        init_command = f"INIT {grid.width} {grid.height} {grid.density}\n"
+        client_socket.sendall(init_command.encode())
+        print(f"Sent: {init_command.strip()}")
 
         # Send obstacles
         obstacle_nodes = [
@@ -151,20 +155,34 @@ while True:
             target_coords = ball_data['orange_balls']['grid'][0]
 
         if target_coords:
-            # Use user-defined start point
             if grid_overlay.start_point:
                 start_x, start_y = grid_overlay.start_point
+                print(f"Start position: ({start_x, {start_y}})")
+            else:
+                print("No start point set.")
+                continue
 
-            target_x, target_y = target_coords
+            start_node = grid.get_node(start_x, start_y)
+            target_node = grid.get_node(*target_coords)
 
-            move_command = f"MOVE {{{start_x},{start_y}}} {{{target_x},{target_y}}}\n"
-            try:
-                client_socket.sendall(move_command.encode())
-                print(f"Ball found at ({target_x},{target_y})")
-                print("Sent command:", move_command.strip())
-                ball_targeted = True
-            except Exception as e:
-                print("Failed to send move command:", e)
+            if not start_node or not target_node:
+                print("Invalid start or target node.")
+                continue
+
+            path = AStar.find_path(start_node, target_node, grid)
+
+            if path:
+                path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                move_command = f"MOVE {path_str}\n"
+                try:
+                    client_socket.sendall(move_command.encode())
+                    print(f"Ball found at ({target_node.x},{target_node.y})")
+                    print("Sent command:", move_command.strip())
+                    ball_targeted = True
+                except Exception as e:
+                    print("Failed to send move command:", e)
+            else:
+                print("No valid path found.")
 
     # --- Key Handling ---
     key = cv2.waitKey(1) & 0xFF
