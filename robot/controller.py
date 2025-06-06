@@ -113,31 +113,14 @@ class Controller:
         # rotate mechanism towards dropoff
             # As this has not been designed yet, who knows which direction this is :)
 
-    def creep_forward(self, distance, speed=50):
-        """Drive the robot forward slowly, checking for obstacles. Returns when the robot is close to an
-        obstacle or has driven the specified distance.
-        Args:
-            distance (int): Distance to drive in millimeters.
-            speed (int, optional): Speed of wheel rotation in degrees/second. Defaults to 50.
-        """
-        self.left_motor.run(speed)
-        self.right_motor.run(speed)
-        distance_driven = 0
-        refresh_time = 10
-        distance_in_degrees = self.distance_to_angle(distance)
-        while (self.us_sensor.distance() > 35) & (distance_driven < distance_in_degrees): # 30 mm is the minimum measurement distance from the wall
-            wait(refresh_time)
-            distance_driven += (refresh_time/1000)*speed
-        self.left_motor.stop()
-        self.right_motor.stop()
 
 
     def pickup_ball(self):
         """Initiate the pickup sequence for a ball.
         """
-        # Placeholder for pickup logic
-
-        print("Picking up ball...")
+        self.start_spinner()
+        self.drive(100, speed=60)  # Drive forward 10 cm
+        self.stop_spinner()
 
 
 
