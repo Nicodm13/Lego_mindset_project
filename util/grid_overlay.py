@@ -9,6 +9,7 @@ class GridOverlay:
         self.handle_size = 10
         self.corners = [(100, 100), (300, 100), (300, 300), (100, 300)]
         self.obstacles = []
+        self.start_point = None  #
         self.dragging_point = -1
         self.matrix = None
         self.on_mark_obstacle = on_mark_obstacle
@@ -18,7 +19,7 @@ class GridOverlay:
         dst = np.float32(self.corners[:4])
         self.matrix = cv2.getPerspectiveTransform(src * 100, dst)
 
-        # Draw only obstacles with filled red background
+        # Draw red obstacle tiles
         for gx, gy in self.obstacles:
             cell = np.float32([
                 [gx / self.grid_cols, gy / self.grid_rows],
@@ -29,6 +30,19 @@ class GridOverlay:
 
             warped = cv2.perspectiveTransform(cell.reshape(-1, 1, 2), self.matrix).reshape(-1, 2).astype(int)
             cv2.fillPoly(frame, [warped], (0, 0, 255))
+
+        # Draw green start point (if not on an obstacle)
+        if self.start_point and self.start_point not in self.obstacles:
+            gx, gy = self.start_point
+            cell = np.float32([
+                [gx / self.grid_cols, gy / self.grid_rows],
+                [(gx + 1) / self.grid_cols, gy / self.grid_rows],
+                [(gx + 1) / self.grid_cols, (gy + 1) / self.grid_rows],
+                [gx / self.grid_cols, (gy + 1) / self.grid_rows]
+            ]) * 100
+
+            warped = cv2.perspectiveTransform(cell.reshape(-1, 1, 2), self.matrix).reshape(-1, 2).astype(int)
+            cv2.fillPoly(frame, [warped], (0, 255, 0))
 
         # Draw coordinate labels
         for gx in range(self.grid_cols):
@@ -60,7 +74,7 @@ class GridOverlay:
             warped = cv2.perspectiveTransform(np.float32([p1, p2]).reshape(-1, 1, 2) * 100, self.matrix)
             cv2.line(frame, tuple(warped[0][0].astype(int)), tuple(warped[1][0].astype(int)), (0, 255, 0), 1)
 
-        # Draw outer polygon and handles
+        # Draw outer polygon and draggable corner handles
         cv2.polylines(frame, [np.array(self.corners, np.int32).reshape((-1, 1, 2))], isClosed=True, color=(0, 255, 0), thickness=2)
         for px, py in self.corners:
             cv2.rectangle(frame, (px - self.handle_size, py - self.handle_size), (px + self.handle_size, py + self.handle_size), (0, 0, 255), -1)
@@ -87,7 +101,14 @@ class GridOverlay:
 
     def mouse_events(self, event, mx, my, flags, param=None):
         if event == cv2.EVENT_LBUTTONDOWN:
-            self.dragging_point = self.get_point_index(mx, my)
+            index = self.get_point_index(mx, my)
+            if index != -1:
+                self.dragging_point = index
+            else:
+                # Set start point if not clicking a corner handle
+                gx, gy = self.get_coordinate_from_pixel(mx, my)
+                if (gx, gy) != (-1, -1) and (gx, gy) not in self.obstacles:
+                    self.start_point = (gx, gy)
 
         elif event == cv2.EVENT_RBUTTONDOWN:
             if self.get_point_index(mx, my) == -1:
