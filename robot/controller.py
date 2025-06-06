@@ -81,6 +81,37 @@ class Controller:
         
         distance = self.grid.get_distance(start, target)
         self.drive(distance)
+    
+    def move_to_dropoff(self, dropoffset: int):
+        """Move the robot to one of the dropoffs.
+
+        Args:
+            dropoff (int): The chosen dropoff to go to. `-1` for west dropoff, `1` for east dropoff.
+                           _Also it's a portmanteau of dropoff and offset. Isn't it clever?!_
+        """
+        # density adjustment
+        effective_density = self.grid.density
+        if (effective_density % 2 == 0):
+            print("WARNING: grid density is even -> cannot navigate to middle of grid")
+            effective_density -= 1  # make density even such that it can be divided by 2
+                                    # (subtraction as opposed to addition is arbitrary and likely unimportant)
+        
+        # identify node to navigate to
+        node_y = effective_density / 2
+
+        i = 0
+        if dropoffset > 0:
+            i += 1  # such that it starts from the east if east dropoff
+        while not self.grid.grid.is_walkable(self.grid.grid[i * dropoffset][node_y]):
+            i += 1
+        
+        node_x = i
+
+        # move to dropoff
+        self.navigate_to_target(self.grid.grid[node_x, node_y])
+        
+        # rotate mechanism towards dropoff
+            # As this has not been designed yet, who knows which direction this is :)
 
     def offset_to_angle(self, xdiff: int, ydiff: int) -> int:
         """Convert a rectangular offset to the corresponding angle, eg. `(1, -1)` -> `45`.
