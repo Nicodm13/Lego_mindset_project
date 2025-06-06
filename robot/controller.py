@@ -125,11 +125,11 @@ class Controller:
         distance_driven = 0
         refresh_time = 10
         distance_in_degrees = self.distance_to_angle(distance)
-        while self.us_sensor.distance() > 35 & distance_driven < distance_in_degrees: # 30 mm is the minimum measurement distance from the wall
+        while (self.us_sensor.distance() > 35) & (distance_driven < distance_in_degrees): # 30 mm is the minimum measurement distance from the wall
             wait(refresh_time)
             distance_driven += (refresh_time/1000)*speed
-        self.left_motor.brake()
-        self.right_motor.brake()
+        self.left_motor.stop()
+        self.right_motor.stop()
 
 
     def pickup_ball(self):
