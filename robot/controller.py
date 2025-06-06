@@ -41,9 +41,9 @@ class Controller:
         self.ev3.screen.print("Controller Ready")
     
     def go_to_near_ball(self, start: Node, ball: Node):
-        """Navigates to a tile near the ball, such that a future method can pick up the ball from a consistent distance from it.
+        """Navigates to a node near the ball and faces it, such that a future method can pick up the ball from a consistent distance from it.
         
-        The method considers:
+        The method considers two areas around the ball:
         - for the "**inner circle**", i.e. the robot-sized square around the ball (diameter same as robot):
             - **if a side has an obstacle:** all sides but opposite are blocked (the robot cannot access the ball from the same or perpendicular sides)
             - **if a corner has an obstacle:** the corner's two sides are blocked (obstacle is in front of the robot from those two sides, but behind the ball from the other two)
@@ -55,6 +55,12 @@ class Controller:
             start (Node): Node from which the robot starts.
             target (Node): Node at which the ball is, near to which the robot will navigate.
         """
+        # TODO:
+        # - merge med main
+	    #   - size implementation
+	    #   - ny navigation implementation (A* på computer)
+        # - test at det faktisk fucking virker
+        
         def sign(x: int):
             if x == 0:
                 return 0
@@ -83,7 +89,7 @@ class Controller:
                     if -halfsize <= i <= halfsize and -halfsize <= j <= halfsize:
                         if i != 0 and j != 0: # if corner
                             # add corner's sides
-                            blocked_sides.append((sign(i), 0)) # REMEMBER TO CHANGE TO SIGN INSTEAD OF I
+                            blocked_sides.append((sign(i), 0))
                             blocked_sides.append((0, sign(j)))
                         elif i == 0: # if horizontal wall
                             # add all sides but opposite side
