@@ -63,6 +63,11 @@ def connect_to_robot():
         print("Connected to robot!")
         connected.set()
 
+        # Send initialize command with grid settings
+        init_msg = f"INIT {grid.width} {grid.height} {grid.density}\n"
+        client_socket.sendall(init_msg.encode())
+        print(f"Sent: {init_msg.strip()}")
+
         # Send obstacles
         obstacle_nodes = [
             node

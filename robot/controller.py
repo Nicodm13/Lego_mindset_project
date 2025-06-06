@@ -17,8 +17,8 @@ ROBOT_PORT = 9999  # Match PC client port
 DEFAULT_HEADING = 0 # North
 
 class Controller:
-    def __init__(self, grid: Grid):
-        self.grid = grid
+    def __init__(self):
+        self.grid = None # Grid will be set during the initilization command
 
         # Physical specifications
         self.robot_width = 120 # mm
@@ -270,6 +270,19 @@ class Controller:
                 self.ev3.screen.clear()
                 self.ev3.screen.print("Cmd: {}".format(command))
                 
+                if command.startswith("INIT"):
+                    parts = command.split()
+                    if len(parts) == 4:
+                        try:
+                            width = int(parts[1])
+                            height = int(parts[2])
+                            density = int(parts[3])
+                            self.grid = Grid(width, height, density)
+                            self.ev3.screen.print("Grid Init: {},{},{}".format(width, height, density))
+                            continue
+                        except ValueError:
+                            self.ev3.screen.print("Invalid INIT")
+
                 if command.startswith("OBSTACLE"):
                     parts = command.split()[1:]
                     for coord_str in parts:
@@ -314,8 +327,7 @@ class Controller:
 # === MAIN FUNCTION ===
 
 def main():
-    grid = Grid(1800, 1200, 17)
-    controller = Controller(grid)
+    controller = Controller()
     controller.start_server()
 
 # === Run Main ===
