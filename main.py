@@ -172,7 +172,7 @@ while True:
                     sx, sy = grid_overlay.start_point
                     start_node = grid.get_node(sx, sy)
                 else:
-                    start_node = grid.get_node(3, 3)
+                    start_node = grid.get_node(0, 0)
                     print("Default start node used.")
 
             closest = AStar.get_closest_nodes(start_node, unvisited, grid, n=3)

@@ -65,9 +65,7 @@ class Controller:
         # Notify PC when done
         if self.conn:
             try:
-                print("Trying to send DONE...")
                 self.conn.send(b"DONE\n")
-                print("DONE sent successfully")
             except Exception as e:
                 print("Failed to send DONE:", e)
 
