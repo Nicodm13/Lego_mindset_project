@@ -1,22 +1,21 @@
 import os
 import sys
+
+# Add robot folder to sys.path before imports
+sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
+
 import cv2
 import socket
 import threading
 import contextlib
-import time
-from util.find_balls import find_ping_pong_balls, draw_ball_detections
-
-# Add robot folder to sys.path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
-
+from robot.config import ROBOT_WIDTH, ROBOT_LENGTH, ROBOT_PORT
 from robot.grid import Grid
-from util.grid_overlay import GridOverlay
 from pathfinding.astar import AStar
+from util.grid_overlay import GridOverlay
+from util.find_balls import find_ping_pong_balls, draw_ball_detections
 
 # --- Global Variables ---
 robot_ip = "192.168.93.19"
-robot_port = 9999
 client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
@@ -59,10 +58,10 @@ cv2.setMouseCallback(WINDOW_NAME, grid_overlay.mouse_events)
 # --- Robot Connection Thread ---
 def connect_to_robot():
     global client_socket
-    print(f"Connecting to robot at {robot_ip}:{robot_port}...")
+    print(f"Connecting to robot at {robot_ip}:{ROBOT_PORT}...")
     try:
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect((robot_ip, robot_port))
+        client_socket.connect((robot_ip, ROBOT_PORT))
         print("Connected to robot!")
         connected.set()
 
@@ -180,7 +179,7 @@ while True:
 
         if tsp_path:
             next_node = tsp_path.pop(0)
-            path = AStar.find_path(start_node, next_node, grid)
+            path = AStar.find_path(start_node, next_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
             if path:
                 try:
                     path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)

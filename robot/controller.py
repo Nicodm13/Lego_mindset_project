@@ -5,6 +5,11 @@ from pybricks.ev3devices import Motor, GyroSensor, UltrasonicSensor
 from pybricks.parameters import Port, Stop
 from pybricks.tools import wait
 
+from config import (
+    ROBOT_WIDTH, ROBOT_LENGTH, WHEEL_DIAMETER, DEFAULT_HEADING, ROBOT_PORT,
+    DRIVE_SPEED, ROTATE_BASE_SPEED, ROTATE_MIN_SPEED, SPINNER_SPEED
+)
+
 from node import Node
 from grid import Grid
 from direction import Direction
@@ -12,17 +17,14 @@ from direction import Direction
 import socket
 import math
 
-ROBOT_PORT = 9999  # Match PC client port
-DEFAULT_HEADING = 0 # North
-
 class Controller:
     def __init__(self):
         self.grid = None # Grid will be set during the initilization command
 
         # Physical specifications
-        self.robot_width = 120 # mm
-        self.robot_length = 150 # mm
-        self.wheel_diameter = 55 # millimeters
+        self.robot_width = ROBOT_WIDTH
+        self.robot_length = ROBOT_LENGTH
+        self.wheel_diameter = WHEEL_DIAMETER
 
         # Initialize EV3 Brick
         self.ev3 = EV3Brick()
@@ -80,10 +82,10 @@ class Controller:
         ydiff = target.y - start.y
 
         angle = self.offset_to_angle(xdiff, ydiff)
-        self.rotate_to(angle)
+        self.rotate_to(angle, base_speed=ROTATE_BASE_SPEED)
 
         distance = self.grid.get_distance(start, target)
-        self.drive(distance)
+        self.drive(distance, speed=DRIVE_SPEED)
 
     def move_to_dropoff(self, dropoffset: int):
         """Move the robot to one of the dropoffs.
@@ -197,24 +199,26 @@ class Controller:
             target_angle (float): The target heading (0-360 degrees).
             base_speed (int, optional): Maximum speed during rotation. Defaults to 100.
         """
-        angle_diff = (target_angle - self.current_heading) % 360
-        if angle_diff > 180:
-            angle_diff -= 360
-
-        if angle_diff == 0:
-            return
+        current = self.current_heading
+        delta = (target_angle - current + 360) % 360
+        if delta > 180:
+            delta -= 360  # Shortest rotation direction
+        if abs(delta) < 1:
+            return  # Already close enough
 
         self.gyro_sensor.reset_angle(0)
-        direction = 1 if angle_diff > 0 else -1
+
+        direction = 1 if delta > 0 else -1
+        target_degrees = abs(delta)
 
         while True:
-            current_angle = self.gyro_sensor.angle()
-            remaining = abs(angle_diff) - abs(current_angle)
+            current_angle = abs(self.gyro_sensor.angle())
+            remaining = target_degrees - current_angle
 
             if remaining <= 0:
                 break
 
-            speed = max(30, int(base_speed * (remaining / abs(angle_diff))))
+            speed = max(ROTATE_MIN_SPEED, int(base_speed * (remaining / target_degrees)))
 
             self.left_motor.run(speed * direction)
             self.right_motor.run(-speed * direction)
@@ -230,7 +234,7 @@ class Controller:
         Args:
             speed (int, optional): Speed of spinner (in degrees/second). Defaults to 500.
         """
-        self.spinner_motor.run(-speed)
+        self.spinner_motor.run(-SPINNER_SPEED)
 
     def stop_spinner(self):
         """Stop rotating the spinner.
