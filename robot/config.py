@@ -11,6 +11,7 @@ SPINNER_SPEED = 500
 
 # Navigation
 DEFAULT_HEADING = 0 # North
+SAFE_DISTANCE_CHECK = 50
 
 # Communication
 ROBOT_PORT = 9999

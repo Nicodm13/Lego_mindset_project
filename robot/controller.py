@@ -6,7 +6,7 @@ from pybricks.parameters import Port, Stop
 from pybricks.tools import wait
 
 from config import (
-    ROBOT_WIDTH, ROBOT_LENGTH, WHEEL_DIAMETER, DEFAULT_HEADING, ROBOT_PORT,
+    ROBOT_WIDTH, ROBOT_LENGTH, WHEEL_DIAMETER, DEFAULT_HEADING, SAFE_DISTANCE_CHECK, ROBOT_PORT,
     DRIVE_SPEED, ROTATE_BASE_SPEED, ROTATE_MIN_SPEED, SPINNER_SPEED
 )
 
@@ -131,7 +131,7 @@ class Controller:
             return self.current_heading
 
     def drive(self, distance: float, speed: int = 200):
-        """Drive the robot forward. **NB: This implementation does not allow for reversing**.
+        """Drive the robot forward a specific distance, checking continuously for obstacles.
 
         Args:
             distance (float): Distance to drive in millimeters.
@@ -139,38 +139,23 @@ class Controller:
         """
         self.left_motor.stop()
         self.right_motor.stop()
+        self.start_spinner()
 
-        self.start_spinner()  # Start spinner when driving begins
+        angle = self.distance_to_angle(distance)
 
-        distance_limit = 50  # mm
+        # Start both motors non-blocking
+        self.left_motor.run_angle(speed, angle, then=Stop.BRAKE, wait=False)
+        self.right_motor.run_angle(speed, angle, then=Stop.BRAKE, wait=False)
 
-        current_angle = self.left_motor.angle()
-        goal_angle = self.distance_to_angle(distance)
-        traveled_angle = 0
-
-        self.left_motor.run(speed)
-        self.right_motor.run(speed)
-
-        while True:
-            prev_angle = current_angle
-            current_angle = self.left_motor.angle()
-
-            if current_angle >= prev_angle:
-                traveled_angle += current_angle - prev_angle
-            else:
-                traveled_angle += (360 - prev_angle) + current_angle
-
-            if traveled_angle >= goal_angle:
-                break
-
-            dist = self.us_sensor.distance()
-            if dist < distance_limit:
+        while self.left_motor.control.done() is False or self.right_motor.control.done() is False:
+            if self.us_sensor.distance() < SAFE_DISTANCE_CHECK:
                 self.on_wall_too_close()
+                self.left_motor.stop(Stop.BRAKE)
+                self.right_motor.stop(Stop.BRAKE)
                 break
+            wait(10)
 
-        self.left_motor.brake()
-        self.right_motor.brake()
-        self.stop_spinner()  # Stop spinner after driving ends
+        self.stop_spinner()
 
     def distance_to_angle(self, distance: float) -> float:
         """Convert distance to corresponding motor angle based on wheel circumference.
@@ -193,33 +178,35 @@ class Controller:
         print("WARNING: Wall too close, stopping and continuing")
 
     def rotate_to(self, target_angle: float, base_speed: int = 100):
-        """Rotate robot to a specific heading angle in degrees.
+        """Rotate the robot to a specific heading using proportional control.
 
         Args:
             target_angle (float): The target heading (0-360 degrees).
-            base_speed (int, optional): Maximum speed during rotation. Defaults to 100.
+            base_speed (int, optional): Maximum rotation speed. Defaults to 100.
         """
         current = self.current_heading
         delta = (target_angle - current + 360) % 360
         if delta > 180:
-            delta -= 360  # Shortest rotation direction
-        if abs(delta) < 1:
+            delta -= 360  # Shortest path
+        if abs(delta) < 0.1:
             return  # Already close enough
 
         self.gyro_sensor.reset_angle(0)
+        wait(1000)  # Allow gyro to stabilize
 
-        direction = 1 if delta > 0 else -1
         target_degrees = abs(delta)
+        direction = 1 if delta > 0 else -1
+
+        Kp = 2.5  # Proportional gain (tweak this as needed)
+        min_speed = ROTATE_MIN_SPEED
 
         while True:
             current_angle = abs(self.gyro_sensor.angle())
             remaining = target_degrees - current_angle
-
-            if remaining <= 0:
+            if remaining <= 0.5:
                 break
 
-            speed = max(ROTATE_MIN_SPEED, int(base_speed * (remaining / target_degrees)))
-
+            speed = max(min_speed, min(base_speed, int(Kp * remaining)))
             self.left_motor.run(speed * direction)
             self.right_motor.run(-speed * direction)
 
@@ -227,6 +214,7 @@ class Controller:
         self.right_motor.stop(Stop.BRAKE)
 
         self.current_heading = target_angle % 360
+
 
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
