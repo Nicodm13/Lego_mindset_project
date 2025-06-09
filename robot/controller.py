@@ -2,20 +2,17 @@
 
 from pybricks.hubs import EV3Brick
 from pybricks.ev3devices import Motor, GyroSensor, UltrasonicSensor
+from pybricks.robotics import DriveBase
 from pybricks.parameters import Port, Stop
 from pybricks.tools import wait
 
-from config import (
-    ROBOT_WIDTH, ROBOT_LENGTH, WHEEL_DIAMETER, DEFAULT_HEADING, SAFE_DISTANCE_CHECK, ROBOT_PORT,
-    DRIVE_SPEED, ROTATE_SPEED, SPINNER_SPEED
-)
+from config import *
 
 from node import Node
 from grid import Grid
 from direction import Direction
 
 import socket
-import math
 
 class Controller:
     def __init__(self):
@@ -26,7 +23,6 @@ class Controller:
         # Physical specifications
         self.robot_width = ROBOT_WIDTH
         self.robot_length = ROBOT_LENGTH
-        self.wheel_diameter = WHEEL_DIAMETER
 
         # Initialize EV3 Brick
         self.ev3 = EV3Brick()
@@ -34,6 +30,7 @@ class Controller:
         # Initialize motors
         self.left_motor = Motor(Port.A)
         self.right_motor = Motor(Port.B)
+        self.drive_base = DriveBase(self.left_motor, self.right_motor, WHEEL_DIAMETER, AXLE_TRACK)
         self.spinner_motor = Motor(Port.C)
 
         # Initialize Sensors
@@ -64,6 +61,7 @@ class Controller:
         Args:
             path (List[Node]): List of nodes to go to, in order, starting with the node the robot is currently on.
         """
+        self.start_spinner(SPINNER_SPEED)
         i = 1
         while i < len(path):
             if(self.reset_requested):
@@ -74,6 +72,7 @@ class Controller:
         # Notify PC when done
         if self.conn:
             try:
+                self.stop_spinner()
                 self.conn.send(b"DONE\n")
             except Exception as e:
                 print("Failed to send DONE:", e)
@@ -142,49 +141,29 @@ class Controller:
             return Direction.ANGLE_MAP[direction_name]
         else:
             return self.current_heading
+            
+    def drive(self, distance: float, speed: int = DRIVE_SPEED):
+        """Drive forward a specific distance using DriveBase.straight() with safe control."""
+        try:
+            self.drive_base.stop()
 
-    def drive(self, distance: float, speed: int = 200):
-        """Drive the robot forward a specific distance, checking continuously for obstacles.
+            self.drive_base.settings(speed, DRIVE_ACCELERATION)
+   
+            self.drive_base.straight(distance)
 
-        Args:
-            distance (float): Distance to drive in millimeters.
-            speed (int, optional): Speed of wheel rotation in degrees/second. Defaults to 200.
-        """
-        self.left_motor.stop()
-        self.right_motor.stop()
-        self.start_spinner(SPINNER_SPEED)
+        except OSError as e:
+            print("Drive EPERM error:", e)
+            self.left_motor.stop(Stop.BRAKE)
+            self.right_motor.stop(Stop.BRAKE)
 
-        angle = self.distance_to_angle(distance)
+        finally:
+            self.drive_base.stop()
 
-        # Start both motors non-blocking
-        self.left_motor.run_angle(speed, angle, then=Stop.BRAKE, wait=False)
-        self.right_motor.run_angle(speed, angle, then=Stop.BRAKE, wait=False)
-
-        while self.left_motor.control.done() is False or self.right_motor.control.done() is False:
-            if self.reset_requested:
-                self.left_motor.stop(Stop.BRAKE)
-                self.right_motor.stop(Stop.BRAKE)
-                break
-            if self.us_sensor.distance() < SAFE_DISTANCE_CHECK:
-                self.on_wall_too_close()
-                self.left_motor.stop(Stop.BRAKE)
-                self.right_motor.stop(Stop.BRAKE)
-                break
-            wait(10)
-
-        self.stop_spinner()
-
-    def distance_to_angle(self, distance: float) -> float:
-        """Convert distance to corresponding motor angle based on wheel circumference.
-
-        Args:
-            distance (float): distance in mm
-
-        Returns:
-            float: angle for motor to turn in degrees
-        """
-        degrees_per_mm = 360 / (math.pi * self.wheel_diameter)
-        return distance * degrees_per_mm
+    def distance_to_angle(self, distance):
+        """Converts linear distance to wheel rotation in degrees."""
+        from math import pi
+        rotations = distance / (pi * WHEEL_DIAMETER)
+        return rotations * 360  # degrees
 
     def on_wall_too_close(self):
         """Behavior triggered when the ultrasonic sensor detects the robot being too close to a wall.
@@ -194,41 +173,49 @@ class Controller:
         self.right_motor.brake()
         print("WARNING: Wall too close, stopping and continuing")
 
-    def rotate_to(self, target_angle: float, speed: int = 100):
-        """Rotate the robot to a specific heading using constant speed.
-
-        Args:
-            target_angle (float): The target heading (0-360 degrees).
-            speed (int, optional): Rotation speed. Defaults to 100.
-        """
+    def rotate_to(self, target_angle: float, speed: int = ROTATE_SPEED):
+        """Rotate the robot to a specific heading using gyro and correct if needed."""
         current = self.current_heading
         delta = (target_angle - current + 360) % 360
         if delta > 180:
-            delta -= 360  # Shortest rotation direction
-        if abs(delta) < 0.1:
-            return  # Already close enough
+            delta -= 360
 
-        self.gyro_sensor.reset_angle(0)
-        wait(1000)  # Allow gyro to stabilize
+        if abs(delta) < ROTATE_CORRECTION_THRESHOLD:
+            return  # Already facing correct direction
 
-        target_degrees = abs(delta)
-        direction = 1 if delta > 0 else -1
+        try:
+            # Stop movement and stabilize hardware
+            self.drive_base.stop()
+            self.gyro_sensor.reset_angle(0)
 
-        self.left_motor.run(speed * direction)
-        self.right_motor.run(-speed * direction)
+            # Set turn speed and acceleration
+            self.drive_base.settings(speed, ROTATE_ACCLERATION)
+            self.drive_base.reset()
 
-        while True:
-            if self.reset_requested:
-                break
-            current_angle = abs(self.gyro_sensor.angle())
-            if current_angle >= target_degrees:
-                break
-            wait(10)
+            # Initial turn
+            self.drive_base.turn(delta)
+            wait(100)
 
-        self.left_motor.stop(Stop.BRAKE)
-        self.right_motor.stop(Stop.BRAKE)
+            # Correction step using actual gyro angle
+            actual = self.gyro_sensor.angle()
+            correction = target_angle - (current + actual)
+            correction = (correction + 180) % 360 - 180  # Normalize to [-180,180]
 
-        self.current_heading = target_angle % 360
+            if abs(correction) > ROTATE_CORRECTION_THRESHOLD:
+                print("Correcting rotation by {:.2f} degrees".format(correction))
+                self.drive_base.turn(correction)
+
+            self.current_heading = target_angle % 360
+
+        except OSError as e:
+            print("Rotation EPERM error:", e)
+            self.left_motor.stop(Stop.BRAKE)
+            self.right_motor.stop(Stop.BRAKE)
+
+        finally:
+            self.drive_base.stop()
+            wait(300)
+
 
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
