@@ -159,12 +159,6 @@ class Controller:
         finally:
             self.drive_base.stop()
 
-    def distance_to_angle(self, distance):
-        """Converts linear distance to wheel rotation in degrees."""
-        from math import pi
-        rotations = distance / (pi * WHEEL_DIAMETER)
-        return rotations * 360  # degrees
-
     def on_wall_too_close(self):
         """Behavior triggered when the ultrasonic sensor detects the robot being too close to a wall.
         What "too close" means is defined by the method calling this.
