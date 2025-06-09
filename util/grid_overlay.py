@@ -44,7 +44,7 @@ class GridOverlay:
             warped = cv2.perspectiveTransform(cell.reshape(-1, 1, 2), self.matrix).reshape(-1, 2).astype(int)
             cv2.fillPoly(frame, [warped], (0, 255, 0))
 
-                # Draw X coordinate labels (top of grid)
+        # Draw X coordinate labels (top)
         for gx in range(self.grid_cols):
             label = str(gx)
             alpha = (gx + 0.5) / self.grid_cols
@@ -53,7 +53,7 @@ class GridOverlay:
             cv2.putText(frame, label, tuple(warped_top.astype(int) - [0, 10]),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
-        # Draw Y coordinate labels (left of grid)
+        # Draw Y coordinate labels (left)
         for gy in range(self.grid_rows):
             label = str(gy)
             beta = (gy + 0.5) / self.grid_rows
@@ -62,7 +62,7 @@ class GridOverlay:
             cv2.putText(frame, label, tuple(warped_left.astype(int) - [25, 0]),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
-        # Draw vertical lines
+        # Draw grid lines
         for i in range(1, self.grid_cols):
             alpha = i / self.grid_cols
             p1 = (1 - alpha) * src[0] + alpha * src[1]
@@ -70,7 +70,6 @@ class GridOverlay:
             warped = cv2.perspectiveTransform(np.float32([p1, p2]).reshape(-1, 1, 2) * 100, self.matrix)
             cv2.line(frame, tuple(warped[0][0].astype(int)), tuple(warped[1][0].astype(int)), (0, 255, 0), 1)
 
-        # Draw horizontal lines
         for j in range(1, self.grid_rows):
             beta = j / self.grid_rows
             p1 = (1 - beta) * src[0] + beta * src[3]
@@ -78,10 +77,20 @@ class GridOverlay:
             warped = cv2.perspectiveTransform(np.float32([p1, p2]).reshape(-1, 1, 2) * 100, self.matrix)
             cv2.line(frame, tuple(warped[0][0].astype(int)), tuple(warped[1][0].astype(int)), (0, 255, 0), 1)
 
-        # Draw outer polygon and draggable corner handles
+        # Draw outer polygon
         cv2.polylines(frame, [np.array(self.corners, np.int32).reshape((-1, 1, 2))], isClosed=True, color=(0, 255, 0), thickness=2)
-        for px, py in self.corners:
-            cv2.rectangle(frame, (px - self.handle_size, py - self.handle_size), (px + self.handle_size, py + self.handle_size), (0, 0, 255), -1)
+
+        # Draw corner handles
+        for i, (px, py) in enumerate(self.corners):
+            radius = 6
+            if i == self.dragging_point:
+                overlay = frame.copy()
+                cv2.circle(overlay, (px, py), radius, (0, 0, 255), -1)
+                alpha = 0.08
+                cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+            else:
+                cv2.circle(frame, (px, py), radius, (0, 0, 255), -1)
+
         return frame
 
     def get_coordinate_from_pixel(self, mx, my):

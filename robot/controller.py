@@ -19,7 +19,9 @@ import math
 
 class Controller:
     def __init__(self):
+        self.reset_requested = False # Flag to reset the robot
         self.grid = None # Grid will be set during the initilization command
+
 
         # Physical specifications
         self.robot_width = ROBOT_WIDTH
@@ -48,6 +50,9 @@ class Controller:
 
     def navigate_to_target(self, path: list[Node]):
         """Follow a given path sent from PC."""
+        if(self.reset_requested):
+            return
+
         if path and len(path) >= 2:
             self.follow_path(path)
         else:
@@ -61,6 +66,8 @@ class Controller:
         """
         i = 1
         while i < len(path):
+            if(self.reset_requested):
+                return
             self.move_to(path[i-1], path[i])
             i += 1
 
@@ -83,6 +90,12 @@ class Controller:
 
         angle = self.offset_to_angle(xdiff, ydiff)
         self.rotate_to(angle, base_speed=ROTATE_BASE_SPEED)
+
+        if self.reset_requested:
+            self.left_motor.stop(Stop.BRAKE)
+            self.right_motor.stop(Stop.BRAKE)
+            return
+
 
         distance = self.grid.get_distance(start, target)
         self.drive(distance, speed=DRIVE_SPEED)
@@ -148,6 +161,10 @@ class Controller:
         self.right_motor.run_angle(speed, angle, then=Stop.BRAKE, wait=False)
 
         while self.left_motor.control.done() is False or self.right_motor.control.done() is False:
+            if self.reset_requested:
+                self.left_motor.stop(Stop.BRAKE)
+                self.right_motor.stop(Stop.BRAKE)
+                break
             if self.us_sensor.distance() < SAFE_DISTANCE_CHECK:
                 self.on_wall_too_close()
                 self.left_motor.stop(Stop.BRAKE)
@@ -197,10 +214,15 @@ class Controller:
         target_degrees = abs(delta)
         direction = 1 if delta > 0 else -1
 
-        Kp = 2.5  # Proportional gain (tweak this as needed)
+        Kp = 2.5  # Proportional gain
         min_speed = ROTATE_MIN_SPEED
 
         while True:
+            if self.reset_requested:
+                self.left_motor.stop(Stop.BRAKE)
+                self.right_motor.stop(Stop.BRAKE)
+                return
+
             current_angle = abs(self.gyro_sensor.angle())
             remaining = target_degrees - current_angle
             if remaining <= 0.5:
@@ -230,79 +252,101 @@ class Controller:
         self.spinner_motor.stop(Stop.BRAKE)
 
     def start_server(self):
-        """Starts and runs the server on the robot to receive commands.
-        """
-        server_socket = socket.socket()
-        server_socket.bind(('', ROBOT_PORT))
-        server_socket.listen(1)
-        self.ev3.screen.print("Waiting for connection...")
+        """Starts and runs the server on the robot to receive commands."""
+        while True:
+            server_socket = socket.socket()
+            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server_socket.bind(('', ROBOT_PORT))
+            server_socket.listen(1)
+            self.ev3.screen.clear()
+            self.ev3.screen.print("Waiting for connection...")
 
-        conn, addr = server_socket.accept()
-        self.conn = conn
-        self.ev3.screen.clear()
-        self.ev3.screen.print("Connected!")
+            conn, addr = server_socket.accept()
+            self.conn = conn
+            self.ev3.screen.clear()
+            self.ev3.screen.print("Connected!")
 
-        try:
-            while True:
-                data = conn.recv(1024)
-                if not data:
-                    break
+            try:
+                while True:
+                    data = conn.recv(1024)
+                    if not data:
+                        break  # client disconnected
 
-                command = data.decode().strip()
-                self.ev3.screen.clear()
-                self.ev3.screen.print("Cmd: {}".format(command))
+                    command = data.decode().strip()
+                    self.ev3.screen.clear()
+                    self.ev3.screen.print("Cmd: {}".format(command))
 
-                if command.startswith("INIT"):
-                    parts = command.split()
-                    if len(parts) == 4:
-                        try:
-                            width = int(parts[1])
-                            height = int(parts[2])
-                            density = int(parts[3])
-                            self.grid = Grid(width, height, density)
-                            self.ev3.screen.print("Grid Init: {},{},{}".format(width, height, density))
-                            continue
-                        except ValueError:
-                            self.ev3.screen.print("Invalid INIT")
-
-                if command.startswith("OBSTACLE"):
-                    parts = command.split()[1:]
-                    for coord_str in parts:
-                        coord_str = coord_str.strip("{}")
-                        if "," in coord_str:
-                            x_str, y_str = coord_str.split(",")
+                    if command.startswith("INIT"):
+                        parts = command.split()
+                        if len(parts) == 4:
                             try:
-                                x, y = int(x_str), int(y_str)
-                                node = self.grid.get_node(x, y)
-                                if node:
-                                    self.grid.add_obstacle(node)
-                            except:
-                                self.ev3.screen.print("Invalid OBST")
+                                width = int(parts[1])
+                                height = int(parts[2])
+                                density = int(parts[3])
+                                self.grid = Grid(width, height, density)
+                                self.reset_requested = False  # clear reset flag
+                                self.ev3.screen.print("Grid Init: {},{},{}".format(width, height, density))
+                            except ValueError:
+                                self.ev3.screen.print("Invalid INIT")
 
-                if command.startswith("MOVE"):
-                    parts = command.split()
-                    coords = []
+                    elif command.startswith("OBSTACLE"):
+                        parts = command.split()[1:]
+                        for coord_str in parts:
+                            coord_str = coord_str.strip("{}")
+                            if "," in coord_str:
+                                try:
+                                    x_str, y_str = coord_str.split(",")
+                                    x, y = int(x_str), int(y_str)
+                                    node = self.grid.get_node(x, y)
+                                    if node:
+                                        self.grid.add_obstacle(node)
+                                except Exception:
+                                    self.ev3.screen.print("Invalid OBST")
 
-                    for coord_str in parts[1:]:
-                        coord_str = coord_str.strip("{}")
-                        if "," in coord_str:
-                            x_str, y_str = coord_str.split(",")
-                            x, y = int(x_str), int(y_str)
-                            node = self.grid.get_node(x, y)
-                            if node:
-                                coords.append(node)
+                    elif command.startswith("MOVE"):
+                        parts = command.split()
+                        coords = []
+                        for coord_str in parts[1:]:
+                            coord_str = coord_str.strip("{}")
+                            if "," in coord_str:
+                                try:
+                                    x_str, y_str = coord_str.split(",")
+                                    x, y = int(x_str), int(y_str)
+                                    node = self.grid.get_node(x, y)
+                                    if node:
+                                        coords.append(node)
+                                except:
+                                    self.ev3.screen.print("Invalid MOVE coord")
 
-                    if len(coords) >= 2:
-                        self.navigate_to_target(coords)
-                    else:
-                        self.ev3.screen.print("Invalid MOVE path")
-        except Exception as e:
-            self.ev3.screen.print("Error!")
-            print("Error:", e)
-        finally:
-            conn.close()
-            server_socket.close()
-            self.ev3.screen.print("Server Closed")
+                        if len(coords) >= 2:
+                            self.navigate_to_target(coords)
+                        else:
+                            self.ev3.screen.print("Invalid MOVE path")
+
+                    elif command == "RESET":
+                        self.reset_requested = True
+                        self.left_motor.stop(Stop.BRAKE)
+                        self.right_motor.stop(Stop.BRAKE)
+                        self.spinner_motor.stop(Stop.BRAKE)
+                        self.gyro_sensor.reset_angle(0)
+                        self.current_heading = DEFAULT_HEADING
+                        self.grid = None
+                        self.ev3.screen.clear()
+                        self.ev3.screen.print("Reset OK")
+                        break  # exit this client session cleanly
+
+            except Exception as e:
+                self.ev3.screen.print("Error!")
+                print("Error:", e)
+
+            finally:
+                conn.close()
+                server_socket.close()
+                wait(1000)  # Wait 1 second for port to be freed
+                self.ev3.screen.clear()
+                self.ev3.screen.print("Connection closed")
+                wait(1000)  # brief pause before allowing reconnect
+
 
 # === MAIN FUNCTION ===
 

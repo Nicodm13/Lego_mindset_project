@@ -103,22 +103,11 @@ def listen_for_robot():
                 break
             message = data.decode().strip()
             if message == "DONE":
-                print("Robot reported DONE")
+                print("Received Command: DONE")
                 awaiting_response = False
-    except Exception as e:
-        print("Error in listener:", e)
+    except (ConnectionResetError, ConnectionAbortedError, OSError) as e:
+        print(f"Listener disconnected: {e}")
         connected.clear()
-
-# --- Suppress stdout temporarily ---
-@contextlib.contextmanager
-def suppress_stdout():
-    with open(os.devnull, 'w') as fnull:
-        old_stdout = sys.stdout
-        sys.stdout = fnull
-        try:
-            yield
-        finally:
-            sys.stdout = old_stdout
 
 # --- Main Loop ---
 printed_searching = False
@@ -136,8 +125,7 @@ while True:
             print("Searching for balls...")
             printed_searching = True
 
-        with suppress_stdout():
-            ball_data = find_ping_pong_balls(original_frame, grid_overlay)
+        ball_data = find_ping_pong_balls(original_frame, grid_overlay)
 
         frame = draw_ball_detections(frame, ball_data)
 
@@ -185,7 +173,7 @@ while True:
                     path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
                     move_command = f"MOVE {path_str}\n"
                     client_socket.sendall(move_command.encode())
-                    print(f"Sent MOVE: {move_command.strip()}")
+                    print(f"Sent COMMAND: {move_command.strip()}")
                     visited_balls.add((next_node.x, next_node.y))
                     start_node = next_node
                     awaiting_response = True
@@ -206,10 +194,37 @@ while True:
         print("Ball detection enabled" if detect_balls else "Ball detection disabled")
     elif key == ord('r'):
         visited_balls.clear()
-        start_node = grid.get_node(3, 3)
         tsp_path.clear()
+        start_node = None
+        target_node = None
         awaiting_response = False
-        print("Visited balls cleared and Start node set to (3,3).")
+
+        # Clear ball detections
+        ball_data['white_balls']['pixels'].clear()
+        ball_data['white_balls']['grid'].clear()
+        ball_data['orange_balls']['pixels'].clear()
+        ball_data['orange_balls']['grid'].clear()
+
+        # Clear obstacles
+        for col in grid.grid:
+            for node in col:
+                node.is_obstacle = False
+        grid_overlay.obstacles.clear()
+
+        # Reset start point
+        grid_overlay.start_point = None
+
+        # Send RESET to robot if connected
+        if connected.is_set() and client_socket:
+            try:
+                client_socket.sendall(b"RESET\n")
+                print("Sent COMMAND: RESET")
+            except Exception as e:
+                print(f"Failed to COMMAND: RESET - {e}")
+   
+        # Forcefully disconnect
+        connected.clear()
+        print("System reset. Waiting for 'C' to reconnect...")
 
 # --- Cleanup ---
 cap.release()
