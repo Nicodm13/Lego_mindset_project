@@ -152,7 +152,7 @@ class Controller:
         """
         self.left_motor.stop()
         self.right_motor.stop()
-        self.start_spinner()
+        self.start_spinner(SPINNER_SPEED)
 
         angle = self.distance_to_angle(distance)
 
@@ -244,7 +244,7 @@ class Controller:
         Args:
             speed (int, optional): Speed of spinner (in degrees/second). Defaults to 500.
         """
-        self.spinner_motor.run(-SPINNER_SPEED)
+        self.spinner_motor.run(-speed)
 
     def stop_spinner(self):
         """Stop rotating the spinner.
