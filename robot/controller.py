@@ -174,38 +174,43 @@ class Controller:
         print("WARNING: Wall too close, stopping and continuing")
 
     def rotate_to(self, target_angle: float, speed: int = ROTATE_SPEED):
-        """Rotate the robot to a specific heading using gyro and correct if needed."""
-        current = self.current_heading
-        delta = (target_angle - current + 360) % 360
-        if delta > 180:
-            delta -= 360
-
-        if abs(delta) < ROTATE_CORRECTION_THRESHOLD:
-            return  # Already facing correct direction
-
+        """Rotate to target using gyro feedback with minimal unnecessary corrections."""
         try:
-            # Stop movement and stabilize hardware
             self.drive_base.stop()
-            self.gyro_sensor.reset_angle(0)
+            #wait(100)
 
-            # Set turn speed and acceleration
+            current_gyro = self.gyro_sensor.angle()
+            delta = (target_angle - current_gyro + 360) % 360
+            if delta > 180:
+                delta -= 360
+
+            if abs(delta) < ROTATE_CORRECTION_THRESHOLD:
+                return  # Already close enough — skip rotation
+
             self.drive_base.settings(speed, ROTATE_ACCLERATION)
             self.drive_base.reset()
 
-            # Initial turn
+            # Primary rotation
             self.drive_base.turn(delta)
-            wait(100)
+            #wait(200)
 
-            # Correction step using actual gyro angle
-            actual = self.gyro_sensor.angle()
-            correction = target_angle - (current + actual)
-            correction = (correction + 180) % 360 - 180  # Normalize to [-180,180]
+            # Correction pass
+            corrected_gyro = self.gyro_sensor.angle()
+            correction = (target_angle - corrected_gyro + 180) % 360 - 180
 
             if abs(correction) > ROTATE_CORRECTION_THRESHOLD:
                 print("Correcting rotation by {:.2f} degrees".format(correction))
-                self.drive_base.turn(correction)
+                self.drive_base.stop()
+                #wait(100)
+                try:
+                    self.drive_base.settings(min(speed, 80), ROTATE_ACCLERATION)
+                    self.drive_base.turn(correction)
+                    #wait(150)
+                except OSError as e:
+                    print("Correction EPERM error:", e)
 
-            self.current_heading = target_angle % 360
+            # Final update from gyro
+            self.current_heading = self.gyro_sensor.angle() % 360
 
         except OSError as e:
             print("Rotation EPERM error:", e)
@@ -214,7 +219,8 @@ class Controller:
 
         finally:
             self.drive_base.stop()
-            wait(300)
+            wait(100)
+
 
 
     def start_spinner(self, speed: int = 500):
