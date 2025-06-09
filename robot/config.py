@@ -1,12 +1,11 @@
 # Physical robot dimensions in millimeters
-ROBOT_WIDTH = 200
-ROBOT_LENGTH = 300
+ROBOT_WIDTH = 230
+ROBOT_LENGTH = 330
 WHEEL_DIAMETER = 55
 
 # Motion settings (degrees/second)
 DRIVE_SPEED = 200
-ROTATE_BASE_SPEED = 100
-ROTATE_MIN_SPEED = 50
+ROTATE_SPEED = 100
 SPINNER_SPEED = 500
 
 # Navigation

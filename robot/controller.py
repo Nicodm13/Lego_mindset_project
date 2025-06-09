@@ -7,7 +7,7 @@ from pybricks.tools import wait
 
 from config import (
     ROBOT_WIDTH, ROBOT_LENGTH, WHEEL_DIAMETER, DEFAULT_HEADING, SAFE_DISTANCE_CHECK, ROBOT_PORT,
-    DRIVE_SPEED, ROTATE_BASE_SPEED, ROTATE_MIN_SPEED, SPINNER_SPEED
+    DRIVE_SPEED, ROTATE_SPEED, SPINNER_SPEED
 )
 
 from node import Node
@@ -89,7 +89,7 @@ class Controller:
         ydiff = target.y - start.y
 
         angle = self.offset_to_angle(xdiff, ydiff)
-        self.rotate_to(angle, base_speed=ROTATE_BASE_SPEED)
+        self.rotate_to(angle, speed=ROTATE_SPEED)
 
         if self.reset_requested:
             self.left_motor.stop(Stop.BRAKE)
@@ -194,17 +194,17 @@ class Controller:
         self.right_motor.brake()
         print("WARNING: Wall too close, stopping and continuing")
 
-    def rotate_to(self, target_angle: float, base_speed: int = 100):
-        """Rotate the robot to a specific heading using proportional control.
+    def rotate_to(self, target_angle: float, speed: int = 100):
+        """Rotate the robot to a specific heading using constant speed.
 
         Args:
             target_angle (float): The target heading (0-360 degrees).
-            base_speed (int, optional): Maximum rotation speed. Defaults to 100.
+            speed (int, optional): Rotation speed. Defaults to 100.
         """
         current = self.current_heading
         delta = (target_angle - current + 360) % 360
         if delta > 180:
-            delta -= 360  # Shortest path
+            delta -= 360  # Shortest rotation direction
         if abs(delta) < 0.1:
             return  # Already close enough
 
@@ -214,29 +214,21 @@ class Controller:
         target_degrees = abs(delta)
         direction = 1 if delta > 0 else -1
 
-        Kp = 2.5  # Proportional gain
-        min_speed = ROTATE_MIN_SPEED
+        self.left_motor.run(speed * direction)
+        self.right_motor.run(-speed * direction)
 
         while True:
             if self.reset_requested:
-                self.left_motor.stop(Stop.BRAKE)
-                self.right_motor.stop(Stop.BRAKE)
-                return
-
-            current_angle = abs(self.gyro_sensor.angle())
-            remaining = target_degrees - current_angle
-            if remaining <= 0.5:
                 break
-
-            speed = max(min_speed, min(base_speed, int(Kp * remaining)))
-            self.left_motor.run(speed * direction)
-            self.right_motor.run(-speed * direction)
+            current_angle = abs(self.gyro_sensor.angle())
+            if current_angle >= target_degrees:
+                break
+            wait(10)
 
         self.left_motor.stop(Stop.BRAKE)
         self.right_motor.stop(Stop.BRAKE)
 
         self.current_heading = target_angle % 360
-
 
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
