@@ -89,8 +89,8 @@ def handle_robot_position():
     global robot_position, robot_orientation, orientation_corrected
     
     try:
-        # Find robot position and orientation
-        robot_x, robot_y, robot_angle, robot_frame = find_robot(original_frame)
+        # Find robot position and orientation, passing the grid_overlay for grid-relative orientation
+        robot_x, robot_y, robot_angle, robot_frame = find_robot(original_frame, grid_overlay)
         
         if robot_x is not None and robot_y is not None and robot_angle is not None:
             # Convert pixel coordinates to grid coordinates
