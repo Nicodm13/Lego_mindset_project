@@ -59,20 +59,20 @@ class Controller:
         Args:
             path (List[Node]): List of nodes to go to, in order, starting with the node the robot is currently on.
         """
-        print("Following path...")
-        self.start_spinner(SPINNER_SPEED)
         i = 1
-        while i < len(path):
+        while i < len(path) - 1: # Stop at the previous node to the last one
             if(self.reset_requested):
                 return
             print("Step {}: From ({},{}) to ({},{})".format(i, path[i-1].x, path[i-1].y, path[i].x, path[i].y))
             self.move_to(path[i-1], path[i])
             i += 1
 
+        # Fetch the ball after reaching the last node
+        self.fetch_ball()
+
         # Notify PC when done
         if self.conn:
             try:
-                self.stop_spinner()
                 print("Path complete, sending DONE")
                 self.conn.send(b"DONE\n")
             except Exception as e:
@@ -217,6 +217,20 @@ class Controller:
         finally:
             self.drive_base.stop()
             wait(100)
+
+    def fetch_ball(self):
+        """Drives forward to pick up the ball, runs spinner during pickup, and resets spinner to 'up' position after."""
+        print("Fetching ball...")
+        self.spinner_motor.run(-SPINNER_SPEED)
+        try:
+            self.drive_base.stop()
+            self.drive_base.settings(PICKUP_SPEED, PICKUP_ACCELERATION)
+            self.drive_base.straight(100)  # 100mm as example
+        finally:
+            self.spinner_motor.stop(Stop.BRAKE)
+            # Reset spinner to default position
+            self.spinner_motor.run_target(100, SPINNER_RESET_ANGLE, Stop.BRAKE, wait=True)
+            print("Ball fetched and spinner reset.")
 
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
