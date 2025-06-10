@@ -7,7 +7,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
 import cv2
 import socket
 import threading
-import contextlib
 from robot.config import ROBOT_WIDTH, ROBOT_LENGTH, ROBOT_PORT
 from robot.grid import Grid
 from pathfinding.astar import AStar

@@ -60,7 +60,7 @@ class Controller:
             path (List[Node]): List of nodes to go to, in order, starting with the node the robot is currently on.
         """
         i = 1
-        while i < len(path) - 1: # Stop at the previous node to the last one
+        while i < len(path) - 2: # Stop at the previous node to the last one
             if(self.reset_requested):
                 return
             print("Step {}: From ({},{}) to ({},{})".format(i, path[i-1].x, path[i-1].y, path[i].x, path[i].y))
@@ -79,17 +79,16 @@ class Controller:
                 print("Failed to send DONE:", e)
 
     def move_to(self, start: Node, target: Node):
-        """Rotate and drive to a **neighboring** node.
-
-        Args:
-            start (Node): Node from which the robot starts.
-            target (Node): Neighboring node to which the robot is to navigate and drive.
-        """
+        """Rotate and drive to a **neighboring** node only if needed."""
         xdiff = target.x - start.x
         ydiff = target.y - start.y
 
         angle = self.offset_to_angle(xdiff, ydiff)
-        self.rotate_to(angle, speed=ROTATE_SPEED)
+        current_gyro = self.gyro_sensor.angle()
+
+        # Check if the target is already in the right direction
+        if abs(angle - current_gyro) >= ROTATE_CORRECTION_THRESHOLD:
+            self.rotate_to(angle)
 
         if self.reset_requested:
             self.left_motor.stop(Stop.BRAKE)
@@ -97,7 +96,7 @@ class Controller:
             return
 
         distance = self.grid.get_distance(start, target)
-        self.drive(distance, speed=DRIVE_SPEED)
+        self.drive(distance)
 
     def move_to_dropoff(self, dropoffset: int):
         """Move the robot to one of the dropoffs.
@@ -145,14 +144,14 @@ class Controller:
         except (KeyError, ValueError) as e:
             raise ValueError("Invalid offset ({}, {}) for direction lookup.".format(xdiff, ydiff)) from e
     
-    def drive(self, distance: float, speed: int = DRIVE_SPEED):
+    def drive(self, distance: float):
         """Drive forward a specific distance using DriveBase.straight() with safe control."""
         try:
             self.drive_base.stop()
 
-            self.drive_base.settings(speed, DRIVE_ACCELERATION)
+            self.drive_base.settings(DRIVE_SPEED, DRIVE_ACCELERATION)
    
-            print("Driving: Distance={}, Speed={}".format(distance, speed))
+            print("Driving: Distance={}, Speed={}".format(distance, DRIVE_SPEED))
             self.drive_base.straight(distance)
 
         except OSError as e:
@@ -172,42 +171,20 @@ class Controller:
         print("WARNING: Wall too close, stopping and continuing")
 
 
-    def rotate_to(self, target_angle: float, speed: int = ROTATE_SPEED):
+    def rotate_to(self, target_angle: float):
         """Rotate to target using gyro feedback with minimal unnecessary corrections."""
         try:
             self.drive_base.stop()
-            #wait(100)
-
+ 
             current_gyro = self.gyro_sensor.angle()
-            delta = (target_angle - current_gyro + 360) % 360
-            if delta > 180:
-                delta -= 360
+            delta = self.angle_diff(target_angle, current_gyro)
 
-            if abs(delta) < ROTATE_CORRECTION_THRESHOLD:
-                return  # Already close enough — skip rotation
-
-            self.drive_base.settings(speed, ROTATE_ACCLERATION)
+            self.drive_base.settings(turn_rate=ROTATE_SPEED, turn_acceleration=ROTATE_ACCLERATION)
             self.drive_base.reset()
 
             # Primary rotation
             print("Rotating from {} to {} (delta: {})".format(current_gyro, target_angle, delta))
             self.drive_base.turn(delta)
-            #wait(200)
-
-            # Correction pass
-            corrected_gyro = self.gyro_sensor.angle()
-            correction = (target_angle - corrected_gyro + 180) % 360 - 180
-
-            if abs(correction) > ROTATE_CORRECTION_THRESHOLD:
-                print("Correcting rotation by {:.2f} degrees".format(correction))
-                self.drive_base.stop()
-                #wait(100)
-                try:
-                    self.drive_base.settings(min(speed, 80), ROTATE_ACCLERATION)
-                    self.drive_base.turn(correction)
-                    #wait(150)
-                except OSError as e:
-                    print("Correction EPERM error:", e)
 
         except OSError as e:
             print("Rotation EPERM error:", e)
@@ -216,7 +193,11 @@ class Controller:
 
         finally:
             self.drive_base.stop()
-            wait(100)
+    
+    def angle_diff(self, target, current):
+        """Calculate minimal difference between two angles (degrees), result in [-180, 180]."""
+        diff = (target - current + 180) % 360 - 180
+        return diff
 
     def fetch_ball(self):
         """Drives forward to pick up the ball, runs spinner during pickup, and resets spinner to 'up' position after."""
@@ -225,11 +206,9 @@ class Controller:
         try:
             self.drive_base.stop()
             self.drive_base.settings(PICKUP_SPEED, PICKUP_ACCELERATION)
-            self.drive_base.straight(100)  # 100mm as example
+            self.drive_base.straight(PICKUP_DISTANCE)
         finally:
-            self.spinner_motor.stop(Stop.BRAKE)
-            # Reset spinner to default position
-            self.spinner_motor.run_target(100, SPINNER_RESET_ANGLE, Stop.BRAKE, wait=True)
+            self.reset_spinner()
             print("Ball fetched and spinner reset.")
 
     def start_spinner(self, speed: int = 500):
@@ -239,6 +218,12 @@ class Controller:
             speed (int, optional): Speed of spinner (in degrees/second). Defaults to 500.
         """
         self.spinner_motor.run(-speed)
+
+    def reset_spinner(self):
+        """Reset the spinner to the default 'up' position."""
+        self.spinner_motor.stop(Stop.BRAKE)
+        self.spinner_motor.run_target(-SPINNER_SPEED, SPINNER_RESET_ANGLE, Stop.BRAKE, wait=True)
+        print("Spinner reset to default position.")
 
     def stop_spinner(self):
         """Stop rotating the spinner.
