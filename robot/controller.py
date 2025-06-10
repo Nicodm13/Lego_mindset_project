@@ -264,6 +264,47 @@ class Controller:
         self.current_heading = target_angle % 360
 
 
+    def adjust_orientation(self, angle_adjustment: float, base_speed: int = 100):
+        """Adjust the robot's orientation by the specified angle.
+        Positive angles rotate clockwise, negative angles rotate counterclockwise.
+
+        Args:
+            angle_adjustment (float): The angle to adjust in degrees
+            base_speed (int, optional): Maximum speed during rotation. Defaults to 100.
+        """
+        if abs(angle_adjustment) < 1:
+            return  # No need to adjust for very small angles
+
+        # Reset gyro sensor to 0
+        self.gyro_sensor.reset_angle(0)
+
+        # Determine rotation direction
+        direction = 1 if angle_adjustment > 0 else -1
+        target_angle = abs(angle_adjustment)
+
+        self.ev3.screen.print(f"Adjusting: {angle_adjustment:.1f}")
+        
+        while True:
+            current_angle = abs(self.gyro_sensor.angle())
+            remaining = target_angle - current_angle
+
+            if remaining <= 0:
+                break
+
+            # Dynamically reduce speed as we get closer
+            speed = max(30, int(base_speed * (remaining / target_angle)))
+
+            self.left_motor.run(speed * direction)
+            self.right_motor.run(-speed * direction)
+
+        # Stop motors
+        self.left_motor.stop(Stop.BRAKE)
+        self.right_motor.stop(Stop.BRAKE)
+
+        # Update heading
+        self.current_heading = (self.current_heading + angle_adjustment) % 360
+        self.ev3.screen.print(f"New heading: {self.current_heading:.1f}")
+
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
 
@@ -313,7 +354,17 @@ class Controller:
                             except:
                                 self.ev3.screen.print("Invalid OBST")
 
-                if command.startswith("MOVE"):
+                elif command.startswith("ADJUST_ORIENTATION"):
+                    try:
+                        # Parse the angle adjustment
+                        angle_adjustment = float(command.split()[1])
+                        self.adjust_orientation(angle_adjustment)
+                        conn.sendall(b"Orientation adjusted\n")
+                    except Exception as e:
+                        self.ev3.screen.print("Adj Err")
+                        print("Adjustment error:", e)
+
+                elif command.startswith("MOVE"):
                     parts = command.split()
                     coords = []
 

@@ -6,6 +6,7 @@ import threading
 import contextlib
 import sys
 from util.find_balls import find_ping_pong_balls, draw_ball_detections
+from util.find_robot import find_robot
 
 # Add robot folder to sys.path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
@@ -26,6 +27,11 @@ ball_data = {
     'white_balls': {'pixels': [], 'grid': []},
     'orange_balls': {'pixels': [], 'grid': []}
 }
+
+# Robot state tracking
+robot_position = None
+robot_orientation = None
+orientation_corrected = False
 
 # --- Grid & Webcam Setup ---
 grid = Grid(1800, 1200, 12)
@@ -78,6 +84,66 @@ def connect_to_robot():
         print(f"Failed to connect: {e}")
         connection_failed.set()
 
+def handle_robot_position():
+    """Detect the robot's position and orientation and send correction if needed"""
+    global robot_position, robot_orientation, orientation_corrected
+    
+    try:
+        # Find robot position and orientation
+        robot_x, robot_y, robot_angle, robot_frame = find_robot(original_frame)
+        
+        if robot_x is not None and robot_y is not None and robot_angle is not None:
+            # Convert pixel coordinates to grid coordinates
+            grid_x = int(robot_x / grid_overlay.cell_width)
+            grid_y = int(robot_y / grid_overlay.cell_height)
+            
+            robot_position = (grid_x, grid_y)
+            robot_orientation = robot_angle
+            
+            # Display robot information
+            print(f"Robot detected at grid: ({grid_x}, {grid_y}), orientation: {robot_angle:.1f}°")
+            
+            # Only adjust orientation once after connection
+            if connected.is_set() and not orientation_corrected:
+                # Calculate angle adjustment (assuming robot should face North/0° in grid coordinates)
+                target_orientation = 0  # North in grid coordinates
+                adjustment = calculate_angle_adjustment(robot_angle, target_orientation)
+                
+                if abs(adjustment) > 5:  # Only adjust if more than 5 degrees off
+                    adjust_command = f"ADJUST_ORIENTATION {adjustment}\n"
+                    try:
+                        client_socket.sendall(adjust_command.encode())
+                        print(f"Sent orientation adjustment: {adjustment:.1f}°")
+                        orientation_corrected = True
+                    except Exception as e:
+                        print("Failed to send orientation adjustment:", e)
+                else:
+                    print("Robot orientation is good enough, no adjustment needed")
+                    orientation_corrected = True
+            
+            return robot_frame
+    except Exception as e:
+        print(f"Error detecting robot: {e}")
+    
+    return None
+
+def calculate_angle_adjustment(current_angle, target_angle):
+    """Calculate the shortest angle adjustment to reach the target orientation"""
+    # Make sure angles are within 0-360
+    current_angle = current_angle % 360
+    target_angle = target_angle % 360
+    
+    # Calculate the difference
+    adjustment = target_angle - current_angle
+    
+    # Take the shortest path
+    if adjustment > 180:
+        adjustment -= 360
+    elif adjustment < -180:
+        adjustment += 360
+        
+    return adjustment
+
 # --- Tracking Move State ---
 ball_targeted = False
 printed_searching = False
@@ -101,28 +167,35 @@ while True:
 
     original_frame = frame.copy()
 
-    # Only detect balls after connected
+    # Only detect balls and robot position after connected
     if connected.is_set():
         if not printed_searching:
-            print("Searching for balls...")
+            print("Searching for balls and robot position...")
             printed_searching = True
 
-        with suppress_stdout():
-            ball_data = find_ping_pong_balls(original_frame, grid_overlay)
+        # Detect robot position and orientation
+        robot_display_frame = handle_robot_position()
+        if robot_display_frame is not None:
+            frame = robot_display_frame
 
-        frame = draw_ball_detections(frame, ball_data)
+        # Detect balls only after orientation is corrected
+        if orientation_corrected:
+            with suppress_stdout():
+                ball_data = find_ping_pong_balls(original_frame, grid_overlay)
 
-        # Display ball coordinates
-        white_txt = f"White: {len(ball_data['white_balls']['grid'])} balls"
-        orange_txt = f"Orange: {len(ball_data['orange_balls']['grid'])} balls"
-        cv2.putText(frame, white_txt, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        cv2.putText(frame, orange_txt, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
+            frame = draw_ball_detections(frame, ball_data)
 
-        # Print coordinates in the grid to console
-        if ball_data['white_balls']['grid']:
-            print("White ball grid coordinates:", ball_data['white_balls']['grid'])
-        if ball_data['orange_balls']['grid']:
-            print("Orange ball grid coordinates:", ball_data['orange_balls']['grid'])
+            # Display ball coordinates
+            white_txt = f"White: {len(ball_data['white_balls']['grid'])} balls"
+            orange_txt = f"Orange: {len(ball_data['orange_balls']['grid'])} balls"
+            cv2.putText(frame, white_txt, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            cv2.putText(frame, orange_txt, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
+
+            # Print coordinates in the grid to console
+            if ball_data['white_balls']['grid']:
+                print("White ball grid coordinates:", ball_data['white_balls']['grid'])
+            if ball_data['orange_balls']['grid']:
+                print("Orange ball grid coordinates:", ball_data['orange_balls']['grid'])
 
     # Draw grid overlay after ball detection
     frame = grid_overlay.draw(frame)
@@ -138,7 +211,7 @@ while True:
         break
 
     # --- After detection, send move command ---
-    if connected.is_set() and not ball_targeted:
+    if connected.is_set() and orientation_corrected and not ball_targeted:
         target_coords = None
 
         if ball_data['white_balls']['grid']:
@@ -146,8 +219,8 @@ while True:
         elif ball_data['orange_balls']['grid']:
             target_coords = ball_data['orange_balls']['grid'][0]
 
-        if target_coords:
-            start_x, start_y = 2, 3  # Assume start at (0,0)
+        if target_coords and robot_position:
+            start_x, start_y = robot_position
             target_x, target_y = target_coords
 
             move_command = f"MOVE {{{start_x},{start_y}}} {{{target_x},{target_y}}}\n"
@@ -166,6 +239,10 @@ while True:
     elif key == ord('c') and not connected.is_set():
         connection_failed.clear()
         threading.Thread(target=connect_to_robot, daemon=True).start()
+    elif key == ord('r'):
+        # Reset orientation correction flag to force recalibration
+        orientation_corrected = False
+        print("Robot orientation detection reset")
 
 # --- Cleanup ---
 cap.release()
