@@ -19,7 +19,6 @@ class Controller:
         self.reset_requested = False # Flag to reset the robot
         self.grid = None # Grid will be set during the initilization command
 
-
         # Physical specifications
         self.robot_width = ROBOT_WIDTH
         self.robot_length = ROBOT_LENGTH
@@ -35,9 +34,7 @@ class Controller:
 
         # Initialize Sensors
         self.gyro_sensor = GyroSensor(Port.S2)
-        self.gyro_sensor.reset_angle(0)
         self.us_sensor = UltrasonicSensor(Port.S1)
-        self.current_heading = DEFAULT_HEADING
 
         # Active socket connection (set in start_server)
         self.conn = None
@@ -51,6 +48,7 @@ class Controller:
             return
 
         if path and len(path) >= 2:
+            print("Navigating to path with {} nodes".format(len(path)))
             self.follow_path(path)
         else:
             self.ev3.screen.print("Invalid or short path")
@@ -61,11 +59,13 @@ class Controller:
         Args:
             path (List[Node]): List of nodes to go to, in order, starting with the node the robot is currently on.
         """
+        print("Following path...")
         self.start_spinner(SPINNER_SPEED)
         i = 1
         while i < len(path):
             if(self.reset_requested):
                 return
+            print("Step {}: From ({},{}) to ({},{})".format(i, path[i-1].x, path[i-1].y, path[i].x, path[i].y))
             self.move_to(path[i-1], path[i])
             i += 1
 
@@ -73,6 +73,7 @@ class Controller:
         if self.conn:
             try:
                 self.stop_spinner()
+                print("Path complete, sending DONE")
                 self.conn.send(b"DONE\n")
             except Exception as e:
                 print("Failed to send DONE:", e)
@@ -94,7 +95,6 @@ class Controller:
             self.left_motor.stop(Stop.BRAKE)
             self.right_motor.stop(Stop.BRAKE)
             return
-
 
         distance = self.grid.get_distance(start, target)
         self.drive(distance, speed=DRIVE_SPEED)
@@ -127,7 +127,7 @@ class Controller:
         self.navigate_to_target(self.grid.grid[node_x, node_y])
 
     def offset_to_angle(self, xdiff: int, ydiff: int) -> int:
-        """Convert a rectangular offset to the corresponding angle, eg. `(1, -1)` -> `45`.
+        """Convert a rectangular offset to the corresponding angle, e.g., (1, -1) -> 45.
 
         Args:
             xdiff (int): Horizontal offset.
@@ -135,13 +135,16 @@ class Controller:
 
         Returns:
             int: Corresponding angle in degrees.
+
+        Raises:
+            ValueError: If the offset does not correspond to a valid direction.
         """
-        direction_name = Direction.from_offset(xdiff, ydiff)
-        if direction_name:
+        try:
+            direction_name = Direction.from_offset(xdiff, ydiff)
             return Direction.ANGLE_MAP[direction_name]
-        else:
-            return self.current_heading
-            
+        except (KeyError, ValueError) as e:
+            raise ValueError("Invalid offset ({}, {}) for direction lookup.".format(xdiff, ydiff)) from e
+    
     def drive(self, distance: float, speed: int = DRIVE_SPEED):
         """Drive forward a specific distance using DriveBase.straight() with safe control."""
         try:
@@ -149,6 +152,7 @@ class Controller:
 
             self.drive_base.settings(speed, DRIVE_ACCELERATION)
    
+            print("Driving: Distance={}, Speed={}".format(distance, speed))
             self.drive_base.straight(distance)
 
         except OSError as e:
@@ -166,6 +170,7 @@ class Controller:
         self.left_motor.brake()
         self.right_motor.brake()
         print("WARNING: Wall too close, stopping and continuing")
+
 
     def rotate_to(self, target_angle: float, speed: int = ROTATE_SPEED):
         """Rotate to target using gyro feedback with minimal unnecessary corrections."""
@@ -185,6 +190,7 @@ class Controller:
             self.drive_base.reset()
 
             # Primary rotation
+            print("Rotating from {} to {} (delta: {})".format(current_gyro, target_angle, delta))
             self.drive_base.turn(delta)
             #wait(200)
 
@@ -203,9 +209,6 @@ class Controller:
                 except OSError as e:
                     print("Correction EPERM error:", e)
 
-            # Final update from gyro
-            self.current_heading = self.gyro_sensor.angle() % 360
-
         except OSError as e:
             print("Rotation EPERM error:", e)
             self.left_motor.stop(Stop.BRAKE)
@@ -214,8 +217,6 @@ class Controller:
         finally:
             self.drive_base.stop()
             wait(100)
-
-
 
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
@@ -264,6 +265,7 @@ class Controller:
                                 density = int(parts[3])
                                 self.grid = Grid(width, height, density)
                                 self.reset_requested = False  # clear reset flag
+                                self.gyro_sensor.reset_angle(0)
                                 self.ev3.screen.print("Grid Init: {},{},{}".format(width, height, density))
                             except ValueError:
                                 self.ev3.screen.print("Invalid INIT")
@@ -308,7 +310,6 @@ class Controller:
                         self.right_motor.stop(Stop.BRAKE)
                         self.spinner_motor.stop(Stop.BRAKE)
                         self.gyro_sensor.reset_angle(0)
-                        self.current_heading = DEFAULT_HEADING
                         self.grid = None
                         self.ev3.screen.clear()
                         self.ev3.screen.print("Reset OK")
