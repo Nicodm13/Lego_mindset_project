@@ -12,6 +12,7 @@ from robot.grid import Grid
 from pathfinding.astar import AStar
 from util.grid_overlay import GridOverlay
 from util.find_balls import find_ping_pong_balls, draw_ball_detections
+from util.path_visualizer import draw_astar_path
 
 # --- Global Variables ---
 robot_ip = "192.168.93.19"
@@ -23,6 +24,7 @@ start_node = None
 visited_balls = set()
 target_node = None
 tsp_path = []
+latest_path = []
 awaiting_response = False
 
 # Ball detection state
@@ -141,6 +143,10 @@ while True:
     status_text = "Press 'C' to Connect" if not connected.is_set() else "Connected"
     cv2.putText(frame, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
 
+    # Draw any paths found by A*
+    if latest_path:
+        frame = draw_astar_path(frame, latest_path, grid_overlay)
+
     cv2.imshow(WINDOW_NAME, frame)
 
     if connection_failed.is_set():
@@ -168,6 +174,8 @@ while True:
             next_node = tsp_path.pop(0)
             path = AStar.find_path(start_node, next_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
             if path:
+                latest_path = path  # 🔹 Save path for drawing
+
                 try:
                     path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
                     move_command = f"MOVE {path_str}\n"
@@ -194,6 +202,7 @@ while True:
     elif key == ord('r'):
         visited_balls.clear()
         tsp_path.clear()
+        latest_path.clear()
         start_node = None
         target_node = None
         awaiting_response = False

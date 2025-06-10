@@ -202,8 +202,8 @@ class Controller:
     def fetch_ball(self):
         """Drives forward to pick up the ball, runs spinner during pickup, and resets spinner to 'up' position after."""
         print("Fetching ball...")
-        self.spinner_motor.run(-SPINNER_SPEED)
         try:
+            self.spinner_motor.run(-SPINNER_SPEED)
             self.drive_base.stop()
             self.drive_base.settings(PICKUP_SPEED, PICKUP_ACCELERATION)
             self.drive_base.straight(PICKUP_DISTANCE)
