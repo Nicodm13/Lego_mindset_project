@@ -7,7 +7,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
 import cv2
 import socket
 import threading
-from robot.config import ROBOT_WIDTH, ROBOT_LENGTH, ROBOT_PORT
+from robot.config import ROBOT_WIDTH, ROBOT_LENGTH, ROBOT_PORT, BALLS_PER_DROPOFF
 from robot.grid import Grid
 from pathfinding.astar import AStar
 from util.grid_overlay import GridOverlay
@@ -178,7 +178,7 @@ while True:
                     start_node = grid.get_node(0, 0)
                     print("Default start node used.")
 
-            closest = AStar.get_closest_nodes(start_node, unvisited, grid, n=3)
+            closest = AStar.get_closest_nodes(start_node, unvisited, grid, n=BALLS_PER_DROPOFF)
             tsp_path.extend(AStar.tsp_brute_force(start_node, closest, grid))
 
         if tsp_path:
