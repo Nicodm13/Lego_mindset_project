@@ -71,7 +71,7 @@ class Controller:
         
         blocked_sides = []
         size = 3 # size of robot in square diameter. Get this number from elsewhere when code is merged.
-        halfsize = math.floor(size / 2)
+        halfsize = (size / 2) // 1 # "// 1" is a scuffed way of doing floor function
         x = ball.x
         y = ball.y
         
