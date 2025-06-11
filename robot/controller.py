@@ -43,7 +43,7 @@ class Controller:
         # Display message
         self.ev3.screen.print("Controller Ready")
 
-    def navigate_to_target(self, path: list[Node]):
+    def navigate_to_target(self, path: list[Node], is_dropoff: bool):
         """Follow a given path sent from PC."""
         if(self.reset_requested):
             return
@@ -51,18 +51,25 @@ class Controller:
         if path and len(path) >= 2:
             print("Navigating to path with {} nodes".format(len(path)))
             self.current_node = path[0]
-            self.follow_path(path)
+            self.follow_path(path, is_dropoff)
         else:
             self.ev3.screen.print("Invalid or short path")
 
-    def follow_path(self, path):
+    def follow_path(self, path, is_dropoff: bool):
         """Follow a path of nodes by driving to each of them in order.
 
         Args:
             path (List[Node]): List of nodes to go to, in order, starting with the node the robot is currently on.
         """
+        size = 3
+        halfsize = size // 2
+        
+        pathlength = len(path)
+        if not is_dropoff:
+            pathlength -= halfsize
+        
         i = 1
-        while i < len(path) - 1: # Stop at the previous node to the last oner
+        while i < pathlength: # Stop at the previous node to the last oner
             if(self.reset_requested):
                 return
             print("Step {}: From ({},{}) to ({},{})".format(i, path[i-1].x, path[i-1].y, path[i].x, path[i].y))
@@ -287,7 +294,8 @@ class Controller:
                                 except Exception:
                                     self.ev3.screen.print("Invalid OBST")
 
-                    elif command.startswith("MOVE"):
+                    elif command.startswith("MOVE") or command.startswith("DROPOFF"):
+                        is_dropoff = command.startswith("DROPOFF")
                         parts = command.split()
                         coords = []
                         for coord_str in parts[1:]:
@@ -303,7 +311,7 @@ class Controller:
                                     self.ev3.screen.print("Invalid MOVE coord")
 
                         if len(coords) >= 2:
-                            self.navigate_to_target(coords)
+                            self.navigate_to_target(coords, is_dropoff)
                         else:
                             self.ev3.screen.print("Invalid MOVE path")
 
