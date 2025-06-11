@@ -27,8 +27,9 @@ def find_robot(frame, grid_overlay=None):
     
     # HSV ranges for blue and yellow-green
     # Blue mask (front marker) - RGB(130, 176, 173) - a teal/cyan color
-    lower_blue = np.array([80, 40, 120])
-    upper_blue = np.array([95, 100, 200])
+    # Widening the HSV range to better detect the teal/cyan color
+    lower_blue = np.array([85, 20, 100])
+    upper_blue = np.array([110, 150, 220])
     blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
     
     # Yellow-green mask (back marker) - RGB(255, 255, 198) to RGB(239, 244, 128)
