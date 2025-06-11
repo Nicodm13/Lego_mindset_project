@@ -1,28 +1,34 @@
 import os
 import sys
+
+# Add robot folder to sys.path before imports
+sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
+
 import cv2
 import socket
 import threading
-import contextlib
-import sys
-from util.find_balls import find_ping_pong_balls, draw_ball_detections
-from util.find_robot import find_robot
-
-# Add robot folder to sys.path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
-
+from robot.config import ROBOT_WIDTH, ROBOT_LENGTH, ROBOT_PORT
 from robot.grid import Grid
+from pathfinding.astar import AStar
 from util.grid_overlay import GridOverlay
+from util.find_balls import find_ping_pong_balls, draw_ball_detections
+from util.path_visualizer import draw_astar_path
 
 # --- Global Variables ---
 robot_ip = "192.168.93.19"
-robot_port = 9999
 client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
 
+start_node = None
+visited_balls = set()
+target_node = None
+tsp_path = []
+latest_path = []
+awaiting_response = False
+
 # Ball detection state
-detect_balls = False  # <-- Start as False
+detect_balls = False
 ball_data = {
     'white_balls': {'pixels': [], 'grid': []},
     'orange_balls': {'pixels': [], 'grid': []}
@@ -34,7 +40,7 @@ robot_orientation = None
 orientation_corrected = False
 
 # --- Grid & Webcam Setup ---
-grid = Grid(1800, 1200, 12)
+grid = Grid(1800, 1200, 17)
 
 def handle_obstacle_marked(gx, gy):
     node = grid.get_node(gx, gy)
@@ -58,12 +64,17 @@ cv2.setMouseCallback(WINDOW_NAME, grid_overlay.mouse_events)
 # --- Robot Connection Thread ---
 def connect_to_robot():
     global client_socket
-    print(f"Connecting to robot at {robot_ip}:{robot_port}...")
+    print(f"Connecting to robot at {robot_ip}:{ROBOT_PORT}...")
     try:
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect((robot_ip, robot_port))
+        client_socket.connect((robot_ip, ROBOT_PORT))
         print("Connected to robot!")
         connected.set()
+
+        # Initialize the robot
+        init_command = f"INIT {grid.width} {grid.height} {grid.density}\n"
+        client_socket.sendall(init_command.encode())
+        print(f"Sent: {init_command.strip()}")
 
         # Send obstacles
         obstacle_nodes = [
@@ -80,86 +91,44 @@ def connect_to_robot():
         else:
             print("No obstacles to send.")
 
+        threading.Thread(target=listen_for_robot, daemon=True).start()
+
     except Exception as e:
         print(f"Failed to connect: {e}")
         connection_failed.set()
 
-def handle_robot_position():
-    """Detect the robot's position and orientation and send correction if needed"""
-    global robot_position, robot_orientation, orientation_corrected
-    
+# --- Robot Listener ---
+def listen_for_robot():
+    global awaiting_response, start_node
     try:
-        # Find robot position and orientation, passing the grid_overlay for grid-relative orientation
-        robot_x, robot_y, robot_angle, robot_frame = find_robot(original_frame, grid_overlay)
-        
-        if robot_x is not None and robot_y is not None and robot_angle is not None:
-            # Convert pixel coordinates to grid coordinates
-            grid_x = int(robot_x / grid_overlay.cell_width)
-            grid_y = int(robot_y / grid_overlay.cell_height)
-            
-            robot_position = (grid_x, grid_y)
-            robot_orientation = robot_angle
-            
-            # Display robot information
-            print(f"Robot detected at grid: ({grid_x}, {grid_y}), orientation: {robot_angle:.1f}°")
-            
-            # Only adjust orientation once after connection
-            if connected.is_set() and not orientation_corrected:
-                # Calculate angle adjustment (assuming robot should face North/0° in grid coordinates)
-                target_orientation = 0  # North in grid coordinates
-                adjustment = calculate_angle_adjustment(robot_angle, target_orientation)
-                
-                if abs(adjustment) > 5:  # Only adjust if more than 5 degrees off
-                    adjust_command = f"ADJUST_ORIENTATION {adjustment}\n"
+        while connected.is_set():
+            data = client_socket.recv(1024)
+            if not data:
+                print("Connection closed by robot.")
+                connected.clear()
+                break
+            message = data.decode().strip()
+            if message.startswith("DONE"):
+                parts = message.split()
+                if len(parts) == 2:
                     try:
-                        client_socket.sendall(adjust_command.encode())
-                        print(f"Sent orientation adjustment: {adjustment:.1f}°")
-                        orientation_corrected = True
+                        x_str, y_str = parts[1].split(",")
+                        x, y = int(x_str), int(y_str)
+                        start_node = grid.get_node(x, y)
+                        print(f"Updated robot position to: ({x}, {y})")
                     except Exception as e:
-                        print("Failed to send orientation adjustment:", e)
+                        print(f"Failed to parse DONE position: {e}")
                 else:
-                    print("Robot orientation is good enough, no adjustment needed")
-                    orientation_corrected = True
-            
-            return robot_frame
-    except Exception as e:
-        print(f"Error detecting robot: {e}")
-    
-    return None
+                    print("Received Command: DONE (no position)")
 
-def calculate_angle_adjustment(current_angle, target_angle):
-    """Calculate the shortest angle adjustment to reach the target orientation"""
-    # Make sure angles are within 0-360
-    current_angle = current_angle % 360
-    target_angle = target_angle % 360
-    
-    # Calculate the difference
-    adjustment = target_angle - current_angle
-    
-    # Take the shortest path
-    if adjustment > 180:
-        adjustment -= 360
-    elif adjustment < -180:
-        adjustment += 360
-        
-    return adjustment
-
-# --- Tracking Move State ---
-ball_targeted = False
-printed_searching = False
-
-# --- Suppress stdout temporarily ---
-@contextlib.contextmanager
-def suppress_stdout():
-    with open(os.devnull, 'w') as fnull:
-        old_stdout = sys.stdout
-        sys.stdout = fnull
-        try:
-            yield
-        finally:
-            sys.stdout = old_stdout
+                awaiting_response = False
+    except (ConnectionResetError, ConnectionAbortedError, OSError) as e:
+        print(f"Listener disconnected: {e}")
+        connected.clear()
 
 # --- Main Loop ---
+printed_searching = False
+
 while True:
     ret, frame = cap.read()
     if not ret:
@@ -173,15 +142,8 @@ while True:
             print("Searching for balls and robot position...")
             printed_searching = True
 
-        # Detect robot position and orientation
-        robot_display_frame = handle_robot_position()
-        if robot_display_frame is not None:
-            frame = robot_display_frame
-
-        # Detect balls only after orientation is corrected
-        if orientation_corrected:
-            with suppress_stdout():
-                ball_data = find_ping_pong_balls(original_frame, grid_overlay)
+        with suppress_stdout():
+            ball_data = find_ping_pong_balls(original_frame, grid_overlay)
 
             frame = draw_ball_detections(frame, ball_data)
 
@@ -191,11 +153,11 @@ while True:
             cv2.putText(frame, white_txt, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             cv2.putText(frame, orange_txt, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
 
-            # Print coordinates in the grid to console
-            if ball_data['white_balls']['grid']:
-                print("White ball grid coordinates:", ball_data['white_balls']['grid'])
-            if ball_data['orange_balls']['grid']:
-                print("Orange ball grid coordinates:", ball_data['orange_balls']['grid'])
+        # Print coordinates in the grid to console
+        if ball_data['white_balls']['grid']:
+            print("White ball grid coordinates:", ball_data['white_balls']['grid'])
+        if ball_data['orange_balls']['grid']:
+            print("Orange ball grid coordinates:", ball_data['orange_balls']['grid'])
 
     # Draw grid overlay after ball detection
     frame = grid_overlay.draw(frame)
@@ -204,33 +166,51 @@ while True:
     status_text = "Press 'C' to Connect" if not connected.is_set() else "Connected"
     cv2.putText(frame, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
 
+    # Draw any paths found by A*
+    if latest_path:
+        frame = draw_astar_path(frame, latest_path, grid_overlay)
+
     cv2.imshow(WINDOW_NAME, frame)
 
     if connection_failed.is_set():
         print("Robot connection failed.")
         break
 
-    # --- After detection, send move command ---
-    if connected.is_set() and orientation_corrected and not ball_targeted:
-        target_coords = None
+    # --- Automated Ball Path Execution ---
+    if connected.is_set() and not awaiting_response:
+        all_balls = ball_data['white_balls']['grid'] + ball_data['orange_balls']['grid']
+        unvisited = [coord for coord in all_balls if coord not in visited_balls]
 
-        if ball_data['white_balls']['grid']:
-            target_coords = ball_data['white_balls']['grid'][0]
-        elif ball_data['orange_balls']['grid']:
-            target_coords = ball_data['orange_balls']['grid'][0]
+        if not tsp_path and unvisited:
+            if not start_node:
+                if grid_overlay.start_point:
+                    sx, sy = grid_overlay.start_point
+                    start_node = grid.get_node(sx, sy)
+                else:
+                    start_node = grid.get_node(0, 0)
+                    print("Default start node used.")
 
-        if target_coords and robot_position:
-            start_x, start_y = robot_position
-            target_x, target_y = target_coords
+            closest = AStar.get_closest_nodes(start_node, unvisited, grid, n=3)
+            tsp_path.extend(AStar.tsp_brute_force(start_node, closest, grid))
 
-            move_command = f"MOVE {{{start_x},{start_y}}} {{{target_x},{target_y}}}\n"
-            try:
-                client_socket.sendall(move_command.encode())
-                print(f"Ball found at ({target_x},{target_y})")
-                print("Sent command:", move_command.strip())
-                ball_targeted = True
-            except Exception as e:
-                print("Failed to send move command:", e)
+        if tsp_path:
+            next_node = tsp_path.pop(0)
+            path = AStar.find_path(start_node, next_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
+            if path:
+                latest_path = path  # 🔹 Save path for drawing
+
+                try:
+                    path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                    move_command = f"MOVE {path_str}\n"
+                    client_socket.sendall(move_command.encode())
+                    print(f"Sent COMMAND: {move_command.strip()}")
+                    visited_balls.add((next_node.x, next_node.y))
+                    #start_node = next_node
+                    awaiting_response = True
+                except Exception as e:
+                    print(f"Error sending move: {e}")
+            else:
+                print("No valid path to next ball, skipping.")
 
     # --- Key Handling ---
     key = cv2.waitKey(1) & 0xFF
@@ -239,10 +219,43 @@ while True:
     elif key == ord('c') and not connected.is_set():
         connection_failed.clear()
         threading.Thread(target=connect_to_robot, daemon=True).start()
+    elif key == ord('d'):
+        detect_balls = not detect_balls
+        print("Ball detection enabled" if detect_balls else "Ball detection disabled")
     elif key == ord('r'):
-        # Reset orientation correction flag to force recalibration
-        orientation_corrected = False
-        print("Robot orientation detection reset")
+        visited_balls.clear()
+        tsp_path.clear()
+        latest_path.clear()
+        start_node = None
+        target_node = None
+        awaiting_response = False
+
+        # Clear ball detections
+        ball_data['white_balls']['pixels'].clear()
+        ball_data['white_balls']['grid'].clear()
+        ball_data['orange_balls']['pixels'].clear()
+        ball_data['orange_balls']['grid'].clear()
+
+        # Clear obstacles
+        for col in grid.grid:
+            for node in col:
+                node.is_obstacle = False
+        grid_overlay.obstacles.clear()
+
+        # Reset start point
+        grid_overlay.start_point = None
+
+        # Send RESET to robot if connected
+        if connected.is_set() and client_socket:
+            try:
+                client_socket.sendall(b"RESET\n")
+                print("Sent COMMAND: RESET")
+            except Exception as e:
+                print(f"Failed to COMMAND: RESET - {e}")
+
+        # Forcefully disconnect
+        connected.clear()
+        print("System reset. Waiting for 'C' to reconnect...")
 
 # --- Cleanup ---
 cap.release()
