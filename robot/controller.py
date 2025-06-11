@@ -18,6 +18,7 @@ class Controller:
     def __init__(self):
         self.reset_requested = False # Flag to reset the robot
         self.grid = None # Grid will be set during the initilization command
+        self.current_node = None  # The robot's current position
 
         # Physical specifications
         self.robot_width = ROBOT_WIDTH
@@ -49,6 +50,7 @@ class Controller:
 
         if path and len(path) >= 2:
             print("Navigating to path with {} nodes".format(len(path)))
+            self.current_node = path[0]
             self.follow_path(path)
         else:
             self.ev3.screen.print("Invalid or short path")
@@ -60,7 +62,7 @@ class Controller:
             path (List[Node]): List of nodes to go to, in order, starting with the node the robot is currently on.
         """
         i = 1
-        while i < len(path) - 2: # Stop at the previous node to the last one
+        while i < len(path) - 1: # Stop at the previous node to the last oner
             if(self.reset_requested):
                 return
             print("Step {}: From ({},{}) to ({},{})".format(i, path[i-1].x, path[i-1].y, path[i].x, path[i].y))
@@ -74,7 +76,8 @@ class Controller:
         if self.conn:
             try:
                 print("Path complete, sending DONE")
-                self.conn.send(b"DONE\n")
+                message = "DONE {},{}\n".format(self.current_node.x, self.current_node.y)
+                self.conn.send(message.encode())
             except Exception as e:
                 print("Failed to send DONE:", e)
 
@@ -97,6 +100,7 @@ class Controller:
 
         distance = self.grid.get_distance(start, target)
         self.drive(distance)
+        self.current_node = target
 
     def move_to_dropoff(self, dropoffset: int):
         """Move the robot to one of the dropoffs.
@@ -203,7 +207,7 @@ class Controller:
         """Drives forward to pick up the ball, runs spinner during pickup, and resets spinner to 'up' position after."""
         print("Fetching ball...")
         try:
-            self.spinner_motor.run(-SPINNER_SPEED)
+            self.start_spinner(SPINNER_SPEED)
             self.drive_base.stop()
             self.drive_base.settings(PICKUP_SPEED, PICKUP_ACCELERATION)
             self.drive_base.straight(PICKUP_DISTANCE)

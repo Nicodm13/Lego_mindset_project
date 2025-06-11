@@ -94,7 +94,7 @@ def connect_to_robot():
 
 # --- Robot Listener ---
 def listen_for_robot():
-    global awaiting_response
+    global awaiting_response, start_node
     try:
         while connected.is_set():
             data = client_socket.recv(1024)
@@ -103,8 +103,19 @@ def listen_for_robot():
                 connected.clear()
                 break
             message = data.decode().strip()
-            if message == "DONE":
-                print("Received Command: DONE")
+            if message.startswith("DONE"):
+                parts = message.split()
+                if len(parts) == 2:
+                    try:
+                        x_str, y_str = parts[1].split(",")
+                        x, y = int(x_str), int(y_str)
+                        start_node = grid.get_node(x, y)
+                        print(f"Updated robot position to: ({x}, {y})")
+                    except Exception as e:
+                        print(f"Failed to parse DONE position: {e}")
+                else:
+                    print("Received Command: DONE (no position)")
+
                 awaiting_response = False
     except (ConnectionResetError, ConnectionAbortedError, OSError) as e:
         print(f"Listener disconnected: {e}")
@@ -182,7 +193,7 @@ while True:
                     client_socket.sendall(move_command.encode())
                     print(f"Sent COMMAND: {move_command.strip()}")
                     visited_balls.add((next_node.x, next_node.y))
-                    start_node = next_node
+                    #start_node = next_node
                     awaiting_response = True
                 except Exception as e:
                     print(f"Error sending move: {e}")
