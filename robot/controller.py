@@ -317,6 +317,17 @@ class Controller:
                         self.ev3.screen.clear()
                         self.ev3.screen.print("Reset OK")
                         break  # exit this client session cleanly
+                        
+                    elif command.startswith("DROPOFF"):
+                        parts = command.split()
+                        match parts[1]:
+                            case "WEST":
+                                dropoffset = -1
+                            case "EAST":
+                                dropoffset = 1
+                            case _:
+                                raise ValueError("Argument {} not valid for DROPOFF command".format(parts[1]))
+                        self.move_to_dropoff(dropoffset)
 
             except Exception as e:
                 self.ev3.screen.print("Error!")
