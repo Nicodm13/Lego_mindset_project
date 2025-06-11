@@ -5,7 +5,7 @@ import math
 def find_robot(frame, grid_overlay=None):
     """
     This entire script is AI genenerated by Claude AI
-    Detect the robot's position and orientation using blue (front) and green (back) tape markers
+    Detect the robot's position and orientation using blue (front) and yellow-green (back) square markers
     
     Args:
         frame: Image captured from overhead camera
@@ -25,15 +25,15 @@ def find_robot(frame, grid_overlay=None):
     # Convert to HSV color space for better color detection
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     
-    # HSV ranges for blue and green
-    # Blue mask (front marker)
-    lower_blue = np.array([100, 50, 50])
-    upper_blue = np.array([130, 255, 255])
+    # HSV ranges for blue and yellow-green
+    # Blue mask (front marker) - RGB(130, 176, 173) - a teal/cyan color
+    lower_blue = np.array([80, 40, 120])
+    upper_blue = np.array([95, 100, 200])
     blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
     
-    # Green mask (back marker) - Dark green range
-    lower_green = np.array([60, 70, 50])
-    upper_green = np.array([100, 255, 255])
+    # Yellow-green mask (back marker) - RGB(255, 255, 198) to RGB(239, 244, 128)
+    lower_green = np.array([25, 40, 100]) 
+    upper_green = np.array([40, 255, 255])
     green_mask = cv2.inRange(hsv, lower_green, upper_green)
     
     # Apply morphological operations to clean up the masks
@@ -64,9 +64,14 @@ def find_robot(frame, grid_overlay=None):
                 blue_y = int(M["m01"] / M["m00"])
                 blue_center = (blue_x, blue_y)
                 
-                # Draw blue marker on output image
-                cv2.circle(output, blue_center, 5, (255, 0, 0), -1)
-                cv2.drawContours(output, [largest_blue], 0, (255, 0, 0), 2)
+                # Get bounding rectangle for the square marker
+                x, y, w, h = cv2.boundingRect(largest_blue)
+                
+                # Draw blue marker on output image (using teal color to match marker)
+                cv2.rectangle(output, (x, y), (x+w, y+h), (173, 176, 130), 2)
+                cv2.drawContours(output, [largest_blue], 0, (173, 176, 130), 2)
+                # Mark center point
+                cv2.drawMarker(output, blue_center, (173, 176, 130), cv2.MARKER_CROSS, 10, 2)
     
     # Process green contours
     if green_contours:
@@ -81,9 +86,14 @@ def find_robot(frame, grid_overlay=None):
                 green_y = int(M["m01"] / M["m00"])
                 green_center = (green_x, green_y)
                 
-                # Draw green marker on output image
-                cv2.circle(output, green_center, 5, (0, 100, 0), -1)
-                cv2.drawContours(output, [largest_green], 0, (0, 100, 0), 2)
+                # Get bounding rectangle for the square marker
+                x, y, w, h = cv2.boundingRect(largest_green)
+                
+                # Draw yellow-green marker on output image
+                cv2.rectangle(output, (x, y), (x+w, y+h), (128, 244, 239), 2)
+                cv2.drawContours(output, [largest_green], 0, (128, 244, 239), 2)
+                # Mark center point
+                cv2.drawMarker(output, green_center, (128, 244, 239), cv2.MARKER_CROSS, 10, 2)
     
     # If both markers are found, calculate robot position and orientation
     if blue_center and green_center:
