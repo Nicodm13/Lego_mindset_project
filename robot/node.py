@@ -17,6 +17,9 @@ class Node:
     def __gt__(self, other):
         return self.f_cost > other.f_cost
 
+    def __hash__(self):
+        return hash((self.x, self.y))
+
     def reset(self):
         self.parent = None
         self.g_cost = float('inf')

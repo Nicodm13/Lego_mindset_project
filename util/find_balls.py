@@ -33,7 +33,7 @@ def find_ping_pong_balls(frame, grid_overlay, model_path='models/model1.pt'):
     model = YOLO(model_abs_path)
 
     # Process the frame
-    results = model(frame, imgsz=640)
+    results = model(frame, imgsz=640, verbose=False)
 
     white_balls_pixels = []
     orange_balls_pixels = []
@@ -75,7 +75,12 @@ def find_ping_pong_balls(frame, grid_overlay, model_path='models/model1.pt'):
         if gx != -1 and gy != -1:  # Valid grid position
             orange_balls_grid.append((gx, gy))
 
-    return {
+    white_balls_grid = list(set(white_balls_grid))
+    orange_balls_grid = list(set(orange_balls_grid))
+    white_balls_pixels = list(set(white_balls_pixels))
+    orange_balls_pixels = list(set(orange_balls_pixels))
+
+    ball_data = {
         'white_balls': {
             'pixels': white_balls_pixels,
             'grid': white_balls_grid
@@ -85,6 +90,8 @@ def find_ping_pong_balls(frame, grid_overlay, model_path='models/model1.pt'):
             'grid': orange_balls_grid
         }
     }
+
+    return ball_data
 
 
 def draw_ball_detections(frame, ball_data):
