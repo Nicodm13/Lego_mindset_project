@@ -199,6 +199,24 @@ while True:
                     print(f"Error sending move: {e}")
             else:
                 print("No valid path to next ball, skipping.")
+            
+            if is_dropoff_time:
+                dropoff_node = grid.get_dropoff(dropoffset=1, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
+                path = AStar.find_path(start_node, dropoff_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
+                if path:
+                    latest_path = path  # 🔹 Save path for drawing
+
+                    try:
+                        path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                        move_command = f"DROPOFF {path_str}\n"
+                        client_socket.sendall(move_command.encode())
+                        print(f"Sent COMMAND: {move_command.strip()}")
+                        #start_node = next_node
+                        awaiting_response = True
+                    except Exception as e:
+                        print(f"Error sending move: {e}")
+                else:
+                    print("No valid path to dropoff, skipping.")
 
     # --- Key Handling ---
     key = cv2.waitKey(1) & 0xFF
