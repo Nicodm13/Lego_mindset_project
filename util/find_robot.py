@@ -5,7 +5,7 @@ import math
 def find_robot(frame, grid_overlay=None):
     """
     This entire script is AI genenerated by Claude AI
-    Detect the robot's position and orientation using blue (front) and red (back) tape markers
+    Detect the robot's position and orientation using blue (front) and green (back) tape markers
     
     Args:
         frame: Image captured from overhead camera
@@ -25,35 +25,31 @@ def find_robot(frame, grid_overlay=None):
     # Convert to HSV color space for better color detection
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     
-    # HSV ranges for blue and red
+    # HSV ranges for blue and green
     # Blue mask (front marker)
     lower_blue = np.array([100, 50, 50])
     upper_blue = np.array([130, 255, 255])
     blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
     
-    # Red mask (back marker) - Red wraps around in HSV, so we need two ranges
-    lower_red1 = np.array([0, 70, 50])
-    upper_red1 = np.array([10, 255, 255])
-    lower_red2 = np.array([170, 70, 50])
-    upper_red2 = np.array([180, 255, 255])
-    red_mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-    red_mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-    red_mask = cv2.bitwise_or(red_mask1, red_mask2)
+    # Green mask (back marker) - Dark green range
+    lower_green = np.array([60, 70, 50])
+    upper_green = np.array([100, 255, 255])
+    green_mask = cv2.inRange(hsv, lower_green, upper_green)
     
     # Apply morphological operations to clean up the masks
     kernel = np.ones((5, 5), np.uint8)
     blue_mask = cv2.morphologyEx(blue_mask, cv2.MORPH_OPEN, kernel)
     blue_mask = cv2.morphologyEx(blue_mask, cv2.MORPH_CLOSE, kernel)
-    red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_OPEN, kernel)
-    red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_CLOSE, kernel)
+    green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_OPEN, kernel)
+    green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel)
     
-    # Find contours for blue and red markers
+    # Find contours for blue and green markers
     blue_contours, _ = cv2.findContours(blue_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    red_contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    green_contours, _ = cv2.findContours(green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
-    # Find the centers of the largest blue and red contours
+    # Find the centers of the largest blue and green contours
     blue_center = None
-    red_center = None
+    green_center = None
     
     # Process blue contours
     if blue_contours:
@@ -72,32 +68,32 @@ def find_robot(frame, grid_overlay=None):
                 cv2.circle(output, blue_center, 5, (255, 0, 0), -1)
                 cv2.drawContours(output, [largest_blue], 0, (255, 0, 0), 2)
     
-    # Process red contours
-    if red_contours:
-        # Find largest red contour by area
-        largest_red = max(red_contours, key=cv2.contourArea)
+    # Process green contours
+    if green_contours:
+        # Find largest green contour by area
+        largest_green = max(green_contours, key=cv2.contourArea)
         
         # Only consider contours with sufficient area
-        if cv2.contourArea(largest_red) > 100:
-            M = cv2.moments(largest_red)
+        if cv2.contourArea(largest_green) > 100:
+            M = cv2.moments(largest_green)
             if M["m00"] != 0:
-                red_x = int(M["m10"] / M["m00"])
-                red_y = int(M["m01"] / M["m00"])
-                red_center = (red_x, red_y)
+                green_x = int(M["m10"] / M["m00"])
+                green_y = int(M["m01"] / M["m00"])
+                green_center = (green_x, green_y)
                 
-                # Draw red marker on output image
-                cv2.circle(output, red_center, 5, (0, 0, 255), -1)
-                cv2.drawContours(output, [largest_red], 0, (0, 0, 255), 2)
+                # Draw green marker on output image
+                cv2.circle(output, green_center, 5, (0, 100, 0), -1)
+                cv2.drawContours(output, [largest_green], 0, (0, 100, 0), 2)
     
     # If both markers are found, calculate robot position and orientation
-    if blue_center and red_center:
+    if blue_center and green_center:
         # Robot's center is the midpoint between the two markers
-        robot_x = (blue_center[0] + red_center[0]) // 2
-        robot_y = (blue_center[1] + red_center[1]) // 2
+        robot_x = (blue_center[0] + green_center[0]) // 2
+        robot_y = (blue_center[1] + green_center[1]) // 2
         
-        # Calculate raw orientation (angle between the line from red to blue and the positive x-axis)
-        dx = blue_center[0] - red_center[0]
-        dy = blue_center[1] - red_center[1]
+        # Calculate raw orientation (angle between the line from green to blue and the positive x-axis)
+        dx = blue_center[0] - green_center[0]
+        dy = blue_center[1] - green_center[1]
         
         # Absolute orientation in the frame (where 0 is positive x-axis)
         orientation_rad = math.atan2(-dy, dx)  # Negative dy because y-axis is inverted in images
@@ -108,7 +104,7 @@ def find_robot(frame, grid_overlay=None):
         
         # Draw robot's center and orientation line
         cv2.circle(output, (robot_x, robot_y), 7, (0, 255, 0), -1)
-        cv2.line(output, red_center, blue_center, (0, 255, 0), 2)
+        cv2.line(output, green_center, blue_center, (0, 255, 0), 2)
         
         # Adjust orientation relative to the grid
         grid_relative_orientation = absolute_orientation_deg
