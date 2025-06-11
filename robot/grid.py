@@ -67,3 +67,14 @@ class Grid:
 
     def add_obstacle(self, node: Node):
         node.is_obstacle = True
+    
+    def get_dropoff(self, dropoffset: int, robot_width: int, robot_length: int):
+        node_y = self.density // 2
+
+        node_x = 0
+        if dropoffset > 0:
+            node_x = self.density - 1
+        while not self.is_walkable(self.get_node(node_x,node_y), robot_width, robot_length):
+            node_x -= dropoffset
+
+        return node_x
