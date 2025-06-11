@@ -102,7 +102,7 @@ class Controller:
         self.drive(distance)
         self.current_node = target
 
-    def move_to_dropoff(self, dropoffset: int):
+    def move_to_dropoff(self, dropoffset: int):  # does not work as it uses the old navigate_to_target implementation
         """Move the robot to one of the dropoffs.
 
         Args:
