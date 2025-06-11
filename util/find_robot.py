@@ -195,7 +195,7 @@ def get_grid_north_angle(grid_overlay, grid_x, grid_y):
     
     return north_angle
 
-def test_robot_detection():
+def debug_robot_detection():
     """
     Visual debugging tool to show camera feed and detection results in real-time.
     
@@ -208,9 +208,13 @@ def test_robot_detection():
     Interactive controls:
     - Press 'q' to quit
     - Use trackbars to adjust HSV threshold values
+    - Left-click on a blue marker to auto-adjust blue HSV thresholds
+    - Right-click on a yellow-green marker to auto-adjust green HSV thresholds
     """
     print("Starting robot detection debug window...")
     print("Press 'q' to exit")
+    print("Left-click on the blue marker to set blue HSV thresholds")
+    print("Right-click on the yellow-green marker to set green HSV thresholds")
     
     # Initialize the camera
     cap = cv2.VideoCapture(0)
@@ -220,15 +224,21 @@ def test_robot_detection():
     
     # Create a window for the trackbars
     cv2.namedWindow('HSV Thresholds')
+    cv2.namedWindow('Robot Detection Debug')
+    
+    # Shared variables for mouse callback
+    global_hsv = None
+    latest_blue_contours = []
+    latest_green_contours = []
     
     # Create trackbars for HSV values
     # Blue marker trackbars
-    cv2.createTrackbar('Blue H Min', 'HSV Thresholds', 80, 179, lambda x: None)
-    cv2.createTrackbar('Blue H Max', 'HSV Thresholds', 95, 179, lambda x: None)
-    cv2.createTrackbar('Blue S Min', 'HSV Thresholds', 40, 255, lambda x: None)
-    cv2.createTrackbar('Blue S Max', 'HSV Thresholds', 100, 255, lambda x: None)
-    cv2.createTrackbar('Blue V Min', 'HSV Thresholds', 120, 255, lambda x: None)
-    cv2.createTrackbar('Blue V Max', 'HSV Thresholds', 200, 255, lambda x: None)
+    cv2.createTrackbar('Blue H Min', 'HSV Thresholds', 85, 179, lambda x: None)
+    cv2.createTrackbar('Blue H Max', 'HSV Thresholds', 110, 179, lambda x: None)
+    cv2.createTrackbar('Blue S Min', 'HSV Thresholds', 20, 255, lambda x: None)
+    cv2.createTrackbar('Blue S Max', 'HSV Thresholds', 150, 255, lambda x: None)
+    cv2.createTrackbar('Blue V Min', 'HSV Thresholds', 100, 255, lambda x: None)
+    cv2.createTrackbar('Blue V Max', 'HSV Thresholds', 220, 255, lambda x: None)
     
     # Yellow-green marker trackbars
     cv2.createTrackbar('Green H Min', 'HSV Thresholds', 25, 179, lambda x: None)
@@ -237,6 +247,108 @@ def test_robot_detection():
     cv2.createTrackbar('Green S Max', 'HSV Thresholds', 255, 255, lambda x: None)
     cv2.createTrackbar('Green V Min', 'HSV Thresholds', 100, 255, lambda x: None)
     cv2.createTrackbar('Green V Max', 'HSV Thresholds', 255, 255, lambda x: None)
+    
+    def mouse_callback(event, x, y, flags, param):
+        nonlocal global_hsv, latest_blue_contours, latest_green_contours
+        
+        # Check if HSV image is available
+        if global_hsv is None:
+            return
+            
+        # Get the height of the main frame to check if click is in the top half
+        frame_height = global_hsv.shape[0]
+        
+        # Ensure the click is within the top half (main frame, not mask area)
+        if y >= frame_height:
+            print("Please click on the main camera view (top half of the window)")
+            return
+        
+        # Check if clicked point is inside any detected blue contour
+        inside_blue = False
+        if latest_blue_contours:
+            for contour in latest_blue_contours:
+                if cv2.pointPolygonTest(contour, (x, y), False) >= 0:
+                    inside_blue = True
+                    h, s, v = global_hsv[y, x]
+                    print(f"\nClicked on an already detected blue marker!")
+                    print(f"HSV at click: ({h}, {s}, {v})")
+                    print("No changes made to thresholds.")
+                    break
+        
+        # Check if clicked point is inside any detected green contour
+        inside_green = False
+        if latest_green_contours:
+            for contour in latest_green_contours:
+                if cv2.pointPolygonTest(contour, (x, y), False) >= 0:
+                    inside_green = True
+                    h, s, v = global_hsv[y, x]
+                    print(f"\nClicked on an already detected green marker!")
+                    print(f"HSV at click: ({h}, {s}, {v})")
+                    print("No changes made to thresholds.")
+                    break
+        
+        # Left button click for blue marker
+        if event == cv2.EVENT_LBUTTONDOWN and not inside_blue and not inside_green:
+            # Get HSV value at clicked point
+            h, s, v = global_hsv[y, x]
+            
+            # Create a threshold range around the clicked value
+            h_margin = 10  # Adjust as needed
+            s_margin = 30
+            v_margin = 50
+            
+            h_min = max(0, h - h_margin)
+            h_max = min(179, h + h_margin)
+            s_min = max(0, s - s_margin)
+            s_max = min(255, s + s_margin)
+            v_min = max(0, v - v_margin)
+            v_max = min(255, v + v_margin)
+            
+            # Update trackbar values for blue
+            cv2.setTrackbarPos('Blue H Min', 'HSV Thresholds', h_min)
+            cv2.setTrackbarPos('Blue H Max', 'HSV Thresholds', h_max)
+            cv2.setTrackbarPos('Blue S Min', 'HSV Thresholds', s_min)
+            cv2.setTrackbarPos('Blue S Max', 'HSV Thresholds', s_max)
+            cv2.setTrackbarPos('Blue V Min', 'HSV Thresholds', v_min)
+            cv2.setTrackbarPos('Blue V Max', 'HSV Thresholds', v_max)
+            
+            print(f"\nBlue marker HSV at click: ({h}, {s}, {v})")
+            print(f"Set blue HSV range to: [{h_min}-{h_max}, {s_min}-{s_max}, {v_min}-{v_max}]")
+            print(f"lower_blue = np.array([{h_min}, {s_min}, {v_min}])")
+            print(f"upper_blue = np.array([{h_max}, {s_max}, {v_max}])")
+            
+        # Right button click for green marker
+        elif event == cv2.EVENT_RBUTTONDOWN and not inside_blue and not inside_green:
+            # Get HSV value at clicked point
+            h, s, v = global_hsv[y, x]
+            
+            # Create a threshold range around the clicked value
+            h_margin = 10  # Adjust as needed
+            s_margin = 30
+            v_margin = 50
+            
+            h_min = max(0, h - h_margin)
+            h_max = min(179, h + h_margin)
+            s_min = max(0, s - s_margin)
+            s_max = min(255, s + s_margin)
+            v_min = max(0, v - v_margin)
+            v_max = min(255, v + v_margin)
+            
+            # Update trackbar values for green
+            cv2.setTrackbarPos('Green H Min', 'HSV Thresholds', h_min)
+            cv2.setTrackbarPos('Green H Max', 'HSV Thresholds', h_max)
+            cv2.setTrackbarPos('Green S Min', 'HSV Thresholds', s_min)
+            cv2.setTrackbarPos('Green S Max', 'HSV Thresholds', s_max)
+            cv2.setTrackbarPos('Green V Min', 'HSV Thresholds', v_min)
+            cv2.setTrackbarPos('Green V Max', 'HSV Thresholds', v_max)
+            
+            print(f"\nGreen marker HSV at click: ({h}, {s}, {v})")
+            print(f"Set green HSV range to: [{h_min}-{h_max}, {s_min}-{s_max}, {v_min}-{v_max}]")
+            print(f"lower_green = np.array([{h_min}, {s_min}, {v_min}])")
+            print(f"upper_green = np.array([{h_max}, {s_max}, {v_max}])")
+    
+    # Set mouse callback
+    cv2.setMouseCallback('Robot Detection Debug', mouse_callback)
     
     while True:
         # Read a frame from the camera
@@ -265,6 +377,8 @@ def test_robot_detection():
         
         # Convert to HSV color space
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        # Update global HSV for mouse callback
+        global_hsv = hsv
         
         # Create masks based on trackbar values
         lower_blue = np.array([blue_h_min, blue_s_min, blue_v_min])
@@ -285,6 +399,10 @@ def test_robot_detection():
         # Find contours
         blue_contours, _ = cv2.findContours(blue_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         green_contours, _ = cv2.findContours(green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        # Update contours for mouse callback
+        latest_blue_contours = blue_contours
+        latest_green_contours = green_contours
         
         # Prepare visualization masks (convert to BGR for display)
         blue_mask_vis = cv2.cvtColor(blue_mask, cv2.COLOR_GRAY2BGR)
@@ -365,8 +483,10 @@ def test_robot_detection():
         
         # Show HSV threshold values on debug frame
         cv2.putText(debug_frame, f"Blue HSV: [{blue_h_min}-{blue_h_max}, {blue_s_min}-{blue_s_max}, {blue_v_min}-{blue_v_max}]", 
-                    (10, frame.shape[0]-60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                    (10, frame.shape[0]-80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         cv2.putText(debug_frame, f"Green HSV: [{green_h_min}-{green_h_max}, {green_s_min}-{green_s_max}, {green_v_min}-{green_v_max}]", 
+                    (10, frame.shape[0]-60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        cv2.putText(debug_frame, "Left-click: set blue HSV | Right-click: set green HSV", 
                     (10, frame.shape[0]-40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         cv2.putText(debug_frame, "Press 'q' to quit, 's' to save current HSV values", 
                     (10, frame.shape[0]-20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
@@ -425,4 +545,4 @@ def test_robot_detection():
 
 if __name__ == "__main__":
     # Run the test function when script is executed directly
-    test_robot_detection()
+    debug_robot_detection()
