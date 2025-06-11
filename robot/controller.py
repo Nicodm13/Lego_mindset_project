@@ -77,7 +77,8 @@ class Controller:
             i += 1
 
         # Fetch the ball after reaching the last node
-        self.fetch_ball()
+        if len(path) >= 2:
+            self.fetch_ball(path[-1])
 
         # Notify PC when done
         if self.conn:
@@ -210,14 +211,23 @@ class Controller:
         diff = (target - current + 180) % 360 - 180
         return diff
 
-    def fetch_ball(self):
-        """Drives forward to pick up the ball, runs spinner during pickup, and resets spinner to 'up' position after."""
+    def fetch_ball(self, target_node: Node):
+        """Drives from the current node to the ball location and spins to pick it up.
+
+        Args:
+            target_node (Node): The location of the ball.
+        """
         print("Fetching ball...")
         try:
             self.start_spinner(SPINNER_SPEED)
             self.drive_base.stop()
             self.drive_base.settings(PICKUP_SPEED, PICKUP_ACCELERATION)
-            self.drive_base.straight(PICKUP_DISTANCE)
+
+            distance = self.grid.get_distance(self.current_node, target_node)
+            print("Driving to ball at ({}, {}) with distance {}".format(target_node.x, target_node.y, distance))
+            self.drive_base.straight(distance)
+
+            self.current_node = target_node
         finally:
             self.reset_spinner()
             print("Ball fetched and spinner reset.")
