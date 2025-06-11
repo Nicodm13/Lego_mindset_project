@@ -15,7 +15,7 @@ from robot.grid import Grid
 from util.grid_overlay import GridOverlay
 
 # --- Global Variables ---
-robot_ip = "192.168.59.19"
+robot_ip = "192.168.93.19"
 robot_port = 9999
 client_socket = None
 connection_failed = threading.Event()

@@ -36,7 +36,7 @@ class Controller:
         # Initialize Sensors
         self.gyro_sensor = GyroSensor(Port.S2)
         self.gyro_sensor.reset_angle(0)
-        self.us_sensor = UltrasonicSensor(Port.S3)
+        self.us_sensor = UltrasonicSensor(Port.S1)
         self.current_heading = DEFAULT_HEADING
 
         # Display message
@@ -282,7 +282,7 @@ class Controller:
         direction = 1 if angle_adjustment > 0 else -1
         target_angle = abs(angle_adjustment)
 
-        self.ev3.screen.print(f"Adjusting: {angle_adjustment:.1f}")
+        self.ev3.screen.print("Adjusting: {}".format(angle_adjustment))
         
         while True:
             current_angle = abs(self.gyro_sensor.angle())
@@ -303,7 +303,7 @@ class Controller:
 
         # Update heading
         self.current_heading = (self.current_heading + angle_adjustment) % 360
-        self.ev3.screen.print(f"New heading: {self.current_heading:.1f}")
+        self.ev3.screen.print("New heading: {}".format(self.current_heading))
 
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
