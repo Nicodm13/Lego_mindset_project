@@ -1,7 +1,7 @@
 # Physical robot dimensions in millimeters
 ROBOT_WIDTH = 250
 ROBOT_LENGTH = 320
-WHEEL_DIAMETER = 55
+WHEEL_DIAMETER = 59
 AXLE_TRACK = 170 # Distance from the center of each wheel to the other
 
 # Motion settings (degrees/second)
