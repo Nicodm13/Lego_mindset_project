@@ -20,8 +20,8 @@ class AStar:
         return path[::-1]
 
     @staticmethod
-    def find_path(start: Node, target: Node, grid: Grid, robot_width = 0, robot_length = 0):
-        # Reset nodes
+    def find_path(start: Node, target: Node, grid: Grid, robot_width=0, robot_length=0):
+        # Reset all nodes
         for col in grid.grid:
             for node in col:
                 node.reset()
@@ -36,7 +36,63 @@ class AStar:
 
         while open_set:
             current = heapq.heappop(open_set)[1]
+
             if current == target:
+                # If target is on an edge, enforce perpendicular approach
+                edge_direction = None
+                max_x, max_y = grid.num_nodes_x - 1, grid.num_nodes_y - 1
+
+                if target.x == 0:
+                    edge_direction = (1, 0)   # Approach from EAST
+                elif target.x == max_x:
+                    edge_direction = (-1, 0)  # Approach from WEST
+                elif target.y == 0:
+                    edge_direction = (0, 1)   # Approach from SOUTH
+                elif target.y == max_y:
+                    edge_direction = (0, -1)  # Approach from NORTH
+
+                if edge_direction:
+                    # Get how far back the robot must be
+                    robot_size_x, robot_size_y = grid.get_robot_size_in_nodes(robot_width, robot_length)
+                    approach_distance = robot_size_y if edge_direction in [(0, -1), (0, 1)] else robot_size_x
+
+                    # Determine the true approach node position
+                    ax = target.x + edge_direction[0] * approach_distance
+                    ay = target.y + edge_direction[1] * approach_distance
+                    approach_node = grid.get_node(ax, ay)
+
+                    # Validate all intermediate nodes
+                    valid_approach = True
+                    for i in range(approach_distance + 1):
+                        bx = target.x + edge_direction[0] * i
+                        by = target.y + edge_direction[1] * i
+                        check_node = grid.get_node(bx, by)
+                        if not check_node or not grid.is_walkable(check_node, robot_width, robot_length):
+                            valid_approach = False
+                            break
+
+                    if valid_approach and approach_node and target != approach_node:
+                        # Re-run path to safe approach point
+                        approach_path = AStar.find_path(start, approach_node, grid, robot_width, robot_length)
+                        if approach_path:
+                            # Calculate direction from approach node to target (inverse of edge direction)
+                            step_dx = -edge_direction[0]
+                            step_dy = -edge_direction[1]
+
+                            # Create the intermediate steps from approach node to target (exluding target node)
+                            intermediate_nodes = []
+                            for i in range(1, approach_distance + 1):
+                                bx = approach_node.x + step_dx * i
+                                by = approach_node.y + step_dy * i
+                                step_node = grid.get_node(bx, by)
+                                if not step_node:
+                                    break
+                                intermediate_nodes.append(step_node)
+
+                            return approach_path + intermediate_nodes
+
+
+                # Fallback: return direct path
                 return AStar.reverse_path(current)
 
             closed_set.add((current.x, current.y))
