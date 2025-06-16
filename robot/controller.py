@@ -61,14 +61,10 @@ class Controller:
         Args:
             path (List[Node]): List of nodes to go to, in order, starting with the node the robot is currently on.
         """
-        halfsize = self.grid.get_robot_size_in_nodes(self.robot_width, self.robot_length) // 2
-        
-        pathlength = len(path)
-        if not is_dropoff:
-            pathlength -= halfsize
+        ball_correction = 0 if is_dropoff else 1
         
         i = 1
-        while i < pathlength: # Stop at the previous node to the last oner
+        while i < len(path) - ball_correction: # Stop at the previous node to the last one if not going to dropoff
             if(self.reset_requested):
                 return
             print("Step {}: From ({},{}) to ({},{})".format(i, path[i-1].x, path[i-1].y, path[i].x, path[i].y))
