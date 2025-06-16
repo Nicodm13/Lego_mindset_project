@@ -61,8 +61,7 @@ class Controller:
         Args:
             path (List[Node]): List of nodes to go to, in order, starting with the node the robot is currently on.
         """
-        size = 3
-        halfsize = size // 2
+        halfsize = self.grid.get_robot_size_in_nodes(self.robot_width, self.robot_length) // 2
         
         pathlength = len(path)
         if not is_dropoff:

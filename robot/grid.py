@@ -73,13 +73,12 @@ class Grid:
     def get_dropoff(self, dropoffset: int, robot_width: int, robot_length: int):
         node_y = self.density // 2
 
-        node_x = 0
-        if dropoffset > 0:
-            node_x = self.density - 1
-        while not self.is_walkable(self.get_node(node_x,node_y), robot_width, robot_length):
-            node_x -= dropoffset
+        node_x = 0 if dropoffset == -1 else self.density - 1
+        
+        halflength = (self.get_robot_size_in_nodes(robot_width, robot_length)[1] // 2) + 1
+        node_x += halflength * (-dropoffset)
 
-        return node_x
+        return self.get_node(node_x, node_y)
 
     def get_robot_size_in_nodes(self, robot_width: float, robot_length: float):
         """
