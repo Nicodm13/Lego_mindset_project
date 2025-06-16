@@ -15,7 +15,7 @@ from util.find_balls import find_ping_pong_balls, draw_ball_detections
 from util.path_visualizer import draw_astar_path
 
 # --- Global Variables ---
-robot_ip = "192.168.93.19"
+robot_ip = "192.168.168.19"
 client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()

@@ -46,6 +46,8 @@ class Grid:
             # Diagonal move, should never happen
             return float('inf')
 
+    
+
     def is_walkable(self, node: Node, robot_width: float = 0, robot_length: float = 0):
         """Check if a node is walkable, considering robot size."""
         if node.is_obstacle:
@@ -78,3 +80,16 @@ class Grid:
             node_x -= dropoffset
 
         return node_x
+
+    def get_robot_size_in_nodes(self, robot_width: float, robot_length: float):
+        """
+        Returns the number of grid nodes the robot occupies in X (width) and Y (length) directions.
+        """
+        node_width_mm = self.width / self.density
+        node_height_mm = self.height / self.density
+
+        nodes_x = int((robot_width / node_width_mm) + 0.5)
+        nodes_y = int((robot_length / node_height_mm) + 0.5)
+
+        return nodes_x, nodes_y
+
