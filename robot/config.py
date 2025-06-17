@@ -1,8 +1,8 @@
 # Physical robot dimensions in millimeters
-ROBOT_WIDTH = 250
-ROBOT_LENGTH = 320
+ROBOT_WIDTH = 280
+ROBOT_LENGTH = 160
 WHEEL_DIAMETER = 59
-AXLE_TRACK = 170 # Distance from the center of each wheel to the other
+AXLE_TRACK = 212 # Distance from the center of each wheel to the other
 
 # Motion settings (degrees/second)
 DRIVE_SPEED = 200
@@ -17,9 +17,6 @@ PICKUP_SPEED = 100
 PICKUP_ACCELERATION = 100  
 SPINNER_RESET_ANGLE = 0 
 SPINNER_SPEED = 500
-
-# Navigation
-SAFE_DISTANCE_CHECK = 50
 
 # Communication
 ROBOT_PORT = 9999

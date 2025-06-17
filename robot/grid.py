@@ -72,11 +72,7 @@ class Grid:
     
     def get_dropoff(self, dropoffset: int, robot_width: int, robot_length: int):
         node_y = self.density // 2
-
         node_x = 0 if dropoffset == -1 else self.density - 1
-        
-        halflength = (self.get_robot_size_in_nodes(robot_width, robot_length)[1] // 2) + 1
-        node_x += halflength * (-dropoffset)
 
         return self.get_node(node_x, node_y)
 
