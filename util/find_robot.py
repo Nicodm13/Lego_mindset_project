@@ -2,14 +2,14 @@ import cv2
 import numpy as np
 import math
 
-def find_robot(frame, grid_overlay=None):
+def find_robot(frame, grid_overlay=None, hsv_ranges=None):
     """
-    This entire script is AI genenerated by Claude AI
     Detect the robot's position and orientation using blue (front) and yellow-green (back) square markers
     
     Args:
         frame: Image captured from overhead camera
         grid_overlay: GridOverlay object to determine grid orientation
+        hsv_ranges: Optional tuple (lower_blue, upper_blue, lower_green, upper_green) for color detection
         
     Returns:
         tuple: (x, y, orientation_degrees, output_frame) where:
@@ -26,15 +26,19 @@ def find_robot(frame, grid_overlay=None):
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     
     # HSV ranges for blue and yellow-green
-    # Blue mask (front marker) - RGB(130, 176, 173) - a teal/cyan color
-    # Widening the HSV range to better detect the teal/cyan color
-    lower_blue = np.array([85, 20, 100])
-    upper_blue = np.array([110, 150, 220])
-    blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
+    if hsv_ranges:
+        lower_blue, upper_blue, lower_green, upper_green = hsv_ranges
+    else:
+        # Default HSV ranges if not provided
+        # Blue mask (front marker)
+        lower_blue = np.array([85, 20, 100])
+        upper_blue = np.array([110, 150, 220])
+        
+        # Yellow-green mask (back marker)
+        lower_green = np.array([25, 40, 100])
+        upper_green = np.array([40, 255, 255])
     
-    # Yellow-green mask (back marker) - RGB(255, 255, 198) to RGB(239, 244, 128)
-    lower_green = np.array([25, 40, 100]) 
-    upper_green = np.array([40, 255, 255])
+    blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
     green_mask = cv2.inRange(hsv, lower_green, upper_green)
     
     # Apply morphological operations to clean up the masks
@@ -198,6 +202,7 @@ def get_grid_north_angle(grid_overlay, grid_x, grid_y):
 def debug_robot_detection():
     """
     Visual debugging tool to show camera feed and detection results in real-time.
+    Returns HSV values for blue and yellow-green markers when user exits.
     
     Shows:
     - Live camera feed
@@ -206,13 +211,19 @@ def debug_robot_detection():
     - Robot position and orientation when detected
     
     Interactive controls:
-    - Press 'q' to quit
+    - Press 'q' to quit and return current HSV values
+    - Press 's' to save current HSV values and exit
     - Use trackbars to adjust HSV threshold values
     - Left-click on a blue marker to auto-adjust blue HSV thresholds
     - Right-click on a yellow-green marker to auto-adjust green HSV thresholds
+    
+    Returns:
+        tuple: (lower_blue, upper_blue, lower_green, upper_green) - numpy arrays
+               containing the HSV ranges for blue and green markers
     """
     print("Starting robot detection debug window...")
-    print("Press 'q' to exit")
+    print("Press 'q' to exit and use current HSV values")
+    print("Press 's' to save HSV values and exit immediately")
     print("Left-click on the blue marker to set blue HSV thresholds")
     print("Right-click on the yellow-green marker to set green HSV thresholds")
     
@@ -220,7 +231,13 @@ def debug_robot_detection():
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("Error: Could not open camera.")
-        return
+        # Return default values if camera fails
+        return (
+            np.array([85, 20, 100]),
+            np.array([110, 150, 220]),
+            np.array([25, 40, 100]),
+            np.array([40, 255, 255])
+        )
     
     # Create a window for the trackbars
     cv2.namedWindow('HSV Thresholds')
@@ -488,7 +505,7 @@ def debug_robot_detection():
                     (10, frame.shape[0]-60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         cv2.putText(debug_frame, "Left-click: set blue HSV | Right-click: set green HSV", 
                     (10, frame.shape[0]-40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-        cv2.putText(debug_frame, "Press 'q' to quit, 's' to save current HSV values", 
+        cv2.putText(debug_frame, "Press 'q' to quit, 's' to save current HSV values and exit", 
                     (10, frame.shape[0]-20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
         # Create combined display (original + masks + debug)
@@ -525,24 +542,26 @@ def debug_robot_detection():
         
         # Handle key presses
         key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):
-            break
-        elif key == ord('s'):
+        if key == ord('q') or key == ord('s'):
             # Save the current HSV values
-            print("\n=== Current HSV Values ===")
+            print("\n=== Final HSV Values ===")
             print(f"Blue HSV range: [{blue_h_min}-{blue_h_max}, {blue_s_min}-{blue_s_max}, {blue_v_min}-{blue_v_max}]")
             print(f"Green HSV range: [{green_h_min}-{green_h_max}, {green_s_min}-{green_s_max}, {green_v_min}-{green_v_max}]")
-            print("Copy these values to update the thresholds in find_robot()")
             print(f"lower_blue = np.array([{blue_h_min}, {blue_s_min}, {blue_v_min}])")
             print(f"upper_blue = np.array([{blue_h_max}, {blue_s_max}, {blue_v_max}])")
             print(f"lower_green = np.array([{green_h_min}, {green_s_min}, {green_v_min}])")
             print(f"upper_green = np.array([{green_h_max}, {green_s_max}, {green_v_max}])")
+            break
     
     # Clean up
     cap.release()
     cv2.destroyAllWindows()
-    print("Debug window closed")
-
-if __name__ == "__main__":
-    # Run the test function when script is executed directly
-    debug_robot_detection()
+    print("HSV calibration completed")
+    
+    # Return the final HSV values
+    return (
+        np.array([blue_h_min, blue_s_min, blue_v_min]),
+        np.array([blue_h_max, blue_s_max, blue_v_max]),
+        np.array([green_h_min, green_s_min, green_v_min]),
+        np.array([green_h_max, green_s_max, green_v_max])
+    )

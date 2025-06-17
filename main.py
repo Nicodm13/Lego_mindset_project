@@ -7,18 +7,37 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
 import cv2
 import socket
 import threading
+import numpy as np
 from robot.config import ROBOT_WIDTH, ROBOT_LENGTH, ROBOT_PORT
 from robot.grid import Grid
 from pathfinding.astar import AStar
 from util.grid_overlay import GridOverlay
 from util.find_balls import find_ping_pong_balls, draw_ball_detections
 from util.path_visualizer import draw_astar_path
+from util.find_robot import debug_robot_detection, find_robot
 
 # --- Global Variables ---
 robot_ip = "192.168.168.19"
 client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
+
+# Run HSV calibration at startup
+print("Starting HSV calibration for robot detection...")
+try:
+    # Get HSV ranges from the debug interface
+    hsv_ranges = debug_robot_detection()
+    print("HSV calibration complete. Values will be used for robot detection.")
+except Exception as e:
+    print(f"HSV calibration failed: {e}")
+    # Use default values if calibration fails
+    hsv_ranges = (
+        np.array([85, 20, 100]),  # lower_blue
+        np.array([110, 150, 220]),  # upper_blue
+        np.array([25, 40, 100]),   # lower_green
+        np.array([40, 255, 255])   # upper_green
+    )
+    print("Using default HSV values for robot detection")
 
 start_node = None
 visited_balls = set()
@@ -143,8 +162,10 @@ while True:
             printed_searching = True
 
         with suppress_stdout():
-            ball_data = find_ping_pong_balls(original_frame, grid_overlay)
+            # Detect robot using calibrated HSV values
+            robot_x, robot_y, robot_orientation, robot_frame = find_robot(original_frame, grid_overlay, hsv_ranges)
 
+            ball_data = find_ping_pong_balls(original_frame, grid_overlay)
             frame = draw_ball_detections(frame, ball_data)
 
             # Display ball coordinates
