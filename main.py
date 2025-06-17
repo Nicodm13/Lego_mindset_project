@@ -15,6 +15,7 @@ from util.grid_overlay import GridOverlay
 from util.find_balls import find_ping_pong_balls, draw_ball_detections
 from util.path_visualizer import draw_astar_path
 from util.find_robot import debug_robot_detection, find_robot
+import time
 
 # --- Global Variables ---
 robot_ip = "192.168.113.19"
@@ -26,7 +27,7 @@ connected = threading.Event()
 print("Starting HSV calibration for robot detection...")
 try:
     # Get HSV ranges from the debug interface
-    hsv_ranges = debug_robot_detection()
+    # hsv_ranges = debug_robot_detection()
     print("HSV calibration complete. Values will be used for robot detection.")
 except Exception as e:
     print(f"HSV calibration failed: {e}")
@@ -69,13 +70,25 @@ def handle_obstacle_marked(gx, gy):
 
 grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
 
-os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
-cap = cv2.VideoCapture(1)
+print("Opening webcam...")
+cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+# Wait until it's ready
+while not cap.isOpened():
+    print("Waiting for camera...")
+    time.sleep(0.5)
+
+# Warm-up
+for _ in range(5):
+    cap.read()
+    cv2.waitKey(30)
+
 ret, frame = cap.read()
 if not ret:
     print("Webcam couldn't be opened.")
     exit()
-
 # --- OpenCV Window Setup ---
 WINDOW_NAME = "Webcam Feed"
 cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
@@ -132,16 +145,16 @@ def listen_for_robot():
                 parts = message.split()
                 if len(parts) == 2:
                     try:
-                        # x_str, y_str = parts[1].split(",")
-                        # x, y = int(x_str), int(y_str)
+                        x_str, y_str = parts[1].split(",")
+                        x, y = int(x_str), int(y_str)
                         # Detect robot using calibrated HSV values
-                        robot_x_pixels, robot_y_pixels, robot_orientation, robot_frame = find_robot(original_frame,
-                                                                                                    grid_overlay,
-                                                                                                    hsv_ranges)
-                        print(f"Robot position: ({robot_x_pixels}, {robot_y_pixels})")
-                        robot_x, robot_y = grid_overlay.get_coordinate_from_pixel(robot_x_pixels, robot_y_pixels)
-                        start_node = grid.get_node(robot_x, robot_y)
-                        print(f"Updated robot position to: ({robot_x}, {robot_y})")
+                        #robot_x_pixels, robot_y_pixels, robot_orientation, robot_frame = find_robot(original_frame,
+                                                                                                    #grid_overlay,
+                                                                                                    #hsv_ranges)
+                        #print(f"Robot position: ({robot_x_pixels}, {robot_y_pixels})")
+                        #robot_x, robot_y = grid_overlay.get_coordinate_from_pixel(robot_x_pixels, robot_y_pixels)
+                        start_node = grid.get_node(x, y)
+                        print(f"Updated robot position to: ({x}, {y})")
                     except Exception as e:
                         print(f"Failed to parse DONE position: {e}")
                 else:

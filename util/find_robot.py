@@ -228,7 +228,7 @@ def debug_robot_detection():
     print("Right-click on the yellow-green marker to set green HSV thresholds")
     
     # Initialize the camera
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("Error: Could not open camera.")
         # Return default values if camera fails
