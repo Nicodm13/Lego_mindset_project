@@ -196,17 +196,25 @@ class Controller:
         return diff
 
     def fetch_ball(self, target_node: Node):
-        """Drives from the current node to the ball location and spins to pick it up.
-
-        Args:
-            target_node (Node): The location of the ball.
-        """
+        """Rotates toward and drives to the ball from current node, and spins to pick it up."""
         print("Fetching ball...")
+
         try:
             self.start_spinner(SPINNER_SPEED)
             self.drive_base.stop()
             self.drive_base.settings(PICKUP_SPEED, PICKUP_ACCELERATION)
 
+            # Rotate toward ball
+            xdiff = target_node.x - self.current_node.x
+            ydiff = target_node.y - self.current_node.y
+
+            angle = self.offset_to_angle(xdiff, ydiff)
+            current_gyro = self.gyro_sensor.angle()
+
+            if abs(angle - current_gyro) >= ROTATE_CORRECTION_THRESHOLD:
+                self.rotate_to(angle)
+
+            # Drive to ball
             distance = self.grid.get_distance(self.current_node, target_node)
             print("Driving to ball at ({}, {}) with distance {}".format(target_node.x, target_node.y, distance))
             self.drive_base.straight(distance)
@@ -215,6 +223,7 @@ class Controller:
         finally:
             self.reset_spinner()
             print("Ball fetched and spinner reset.")
+
 
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
