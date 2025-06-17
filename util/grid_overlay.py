@@ -94,6 +94,21 @@ class GridOverlay:
         return frame
 
     def get_coordinate_from_pixel(self, mx, my):
+        """
+        Converts a pixel coordinate (mx, my) from the image frame into a grid cell coordinate (gx, gy).
+
+        This method uses the perspective transformation matrix to map the pixel location
+        to the corresponding grid cell in the overlay. If the pixel is outside the grid bounds,
+        it returns (-1, -1).
+
+        Args:
+            mx (int): The x-coordinate of the pixel in the image frame.
+            my (int): The y-coordinate of the pixel in the image frame.
+
+        Returns:
+            tuple: A tuple (cell_x, cell_y) representing the grid cell coordinates.
+                   Returns (-1, -1) if the pixel is outside the grid bounds or the grid cell is invalid.
+        """
         if self.matrix is None:
             return -1, -1
         inv_matrix = np.linalg.inv(self.matrix)

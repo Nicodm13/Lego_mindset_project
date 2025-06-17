@@ -14,7 +14,7 @@ from pathfinding.astar import AStar
 from util.grid_overlay import GridOverlay
 from util.find_balls import find_ping_pong_balls, draw_ball_detections
 from util.path_visualizer import draw_astar_path
-from util.find_robot import debug_robot_detection, find_robot
+from util.find_robot import debug_robot_detection, find_robot, draw_robot_detection_overlay
 import time
 
 # --- Global Variables ---
@@ -27,7 +27,7 @@ connected = threading.Event()
 print("Starting HSV calibration for robot detection...")
 try:
     # Get HSV ranges from the debug interface
-    # hsv_ranges = debug_robot_detection()
+    hsv_ranges = debug_robot_detection()
     print("HSV calibration complete. Values will be used for robot detection.")
 except Exception as e:
     print(f"HSV calibration failed: {e}")
@@ -71,7 +71,7 @@ def handle_obstacle_marked(gx, gy):
 grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
 
 print("Opening webcam...")
-cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
@@ -148,11 +148,11 @@ def listen_for_robot():
                         x_str, y_str = parts[1].split(",")
                         x, y = int(x_str), int(y_str)
                         # Detect robot using calibrated HSV values
-                        #robot_x_pixels, robot_y_pixels, robot_orientation, robot_frame = find_robot(original_frame,
-                                                                                                    #grid_overlay,
-                                                                                                    #hsv_ranges)
-                        #print(f"Robot position: ({robot_x_pixels}, {robot_y_pixels})")
-                        #robot_x, robot_y = grid_overlay.get_coordinate_from_pixel(robot_x_pixels, robot_y_pixels)
+                        robot_x_pixels, robot_y_pixels, robot_orientation, robot_frame = find_robot(original_frame,
+                                                                                                    grid_overlay,
+                                                                                                    hsv_ranges)
+                        print(f"Robot position: ({robot_x_pixels}, {robot_y_pixels})")
+                        robot_x, robot_y = grid_overlay.get_coordinate_from_pixel(robot_x_pixels, robot_y_pixels)
                         start_node = grid.get_node(x, y)
                         print(f"Updated robot position to: ({x}, {y})")
                     except Exception as e:
@@ -180,6 +180,8 @@ while True:
 
     # Draw grid and path overlays
     frame = grid_overlay.draw(frame)
+# Detect robot
+    robot_x_pixels, robot_y_pixels, robot_orientation, frame = find_robot(original_frame, grid_overlay, hsv_ranges)
 
     if latest_path:
         frame = draw_astar_path(frame, latest_path, grid_overlay)
