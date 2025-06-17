@@ -35,12 +35,16 @@ class Controller:
 
         # Initialize Sensors
         self.gyro_sensor = GyroSensor(Port.S1)
+        self.gyro_sensor.reset_angle(0)
 
         # Active socket connection (set in start_server)
         self.conn = None
 
         # Display message
         self.ev3.screen.print("Controller Ready")
+
+        # Reset the spinner
+        self.reset_spinner()
 
     def navigate_to_target(self, path: list[Node], is_dropoff: bool):
         """Follow a given path sent from PC."""
@@ -147,19 +151,28 @@ class Controller:
         """Rotate to target using gyro feedback with minimal unnecessary corrections."""
         try:
             self.drive_base.stop()
- 
-            current_gyro = self.normalize_angle(self.gyro_sensor.angle())
 
-            current_gyro = self.gyro_sensor.angle()
+            # Normalize target to [0, 360)
+            target_angle = self.normalize_angle(target_angle)
+
+            current_gyro = self.normalize_angle(self.gyro_sensor.angle())
             delta = self.angle_diff(target_angle, current_gyro)
+
+            print("Current: {:.1f}°, Target: {}°, Delta: {:.1f}°".format(
+                current_gyro, target_angle, delta))
+
+            if abs(delta) < ROTATE_CORRECTION_THRESHOLD:
+                print("[Skipping rotation (within threshold of {}°)".format(
+                    ROTATE_CORRECTION_THRESHOLD))
+                return
 
             self.drive_base.settings(turn_rate=ROTATE_SPEED, turn_acceleration=ROTATE_ACCLERATION)
             self.drive_base.reset()
 
-            # Primary rotation
-            print("Rotating from {} to {} (delta: {})".format(current_gyro, target_angle, delta))
             self.drive_base.turn(delta)
+            print("Rotating {}".format(delta))
 
+            # Reset gyro to reflect new heading (avoid drift accumulation)
             self.gyro_sensor.reset_angle(target_angle)
 
         except OSError as e:
@@ -215,10 +228,27 @@ class Controller:
         self.spinner_motor.run(-speed)
 
     def reset_spinner(self):
-        """Reset the spinner to the default 'up' position."""
+        """Reset the spinner to the default 'up' position using shortest rotation."""
         self.spinner_motor.stop(Stop.BRAKE)
-        self.spinner_motor.run_target(-SPINNER_SPEED, SPINNER_RESET_ANGLE, Stop.BRAKE, wait=True)
-        print("Spinner reset to default position.")
+
+        # Get the current spinner angle, modulo 360 to keep within one rotation
+        current_angle = self.spinner_motor.angle() % 360
+
+        # Calculate shortest path back to SPINNER_RESET_ANGLE (which is 0)
+        target = 0 % 360
+        diff = (target - current_angle + 180) % 360 - 180  # Result is in [-180, 180]
+
+        print("Resetting spinner from {:.1f}° → rotating {:.1f}° to reach {}°".format(
+            current_angle, diff, 0))
+
+        # Perform relative turn
+        self.spinner_motor.run_angle(SPINNER_SPEED, diff, then=Stop.BRAKE, wait=True)
+
+        # Reset internal angle to keep it aligned with logic
+        self.spinner_motor.reset_angle(0)
+
+        print("Spinner reset complete.")
+
 
     def stop_spinner(self):
         """Stop rotating the spinner.

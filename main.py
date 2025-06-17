@@ -166,8 +166,6 @@ def listen_for_robot():
         connected.clear()
 
 # --- Main Loop ---
-printed_searching = False
-
 while True:
     ret, frame = cap.read()
     if not ret:
@@ -177,11 +175,8 @@ while True:
 
     # Detect balls and robot
     if connected.is_set():
-        if not printed_searching:
-            print("Searching for balls and robot position...")
-            printed_searching = True
-            ball_data = find_ping_pong_balls(original_frame, grid_overlay)
-            frame = draw_ball_detections(frame, ball_data)
+        ball_data = find_ping_pong_balls(original_frame, grid_overlay)
+        frame = draw_ball_detections(frame, ball_data)
 
     # Draw grid and path overlays
     frame = grid_overlay.draw(frame)
