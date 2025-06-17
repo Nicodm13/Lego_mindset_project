@@ -126,20 +126,24 @@ def find_robot(frame, grid_overlay=None, hsv_ranges=None):
         grid_north_angle = 0
         
         if grid_overlay is not None:
-            # Find the grid cell containing the robot
-            grid_x = int(robot_x / grid_overlay.cell_width)
-            grid_y = int(robot_y / grid_overlay.cell_height)
+            # Find the grid cell containing the robot using the proper conversion method
+            grid_x, grid_y = grid_overlay.get_coordinate_from_pixel(robot_x, robot_y)
             
-            # Calculate grid North based on the horizontal grid line angle
-            # Get the angle of the nearest horizontal grid line above the robot
-            grid_north_angle = get_grid_north_angle(grid_overlay, grid_x, grid_y)
-            
-            # Adjust orientation relative to grid North
-            grid_relative_orientation = (absolute_orientation_deg - grid_north_angle) % 360
-            
-            # Display grid North angle for debugging
-            cv2.putText(output, f"Grid North: {grid_north_angle:.1f}°", 
-                       (robot_x + 10, robot_y + 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+            # Only proceed if the robot is within a valid grid cell
+            if grid_x != -1 and grid_y != -1:
+                # Calculate grid North based on the horizontal grid line angle
+                grid_north_angle = get_grid_north_angle(grid_overlay, robot_x, robot_y)
+                
+                # Adjust orientation relative to grid North
+                grid_relative_orientation = (absolute_orientation_deg - grid_north_angle) % 360
+                
+                # Display grid North angle for debugging
+                cv2.putText(output, f"Grid North: {grid_north_angle:.1f}°", 
+                           (robot_x + 10, robot_y + 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+                
+                # Add grid cell coordinates for debugging
+                cv2.putText(output, f"Grid Cell: ({grid_x}, {grid_y})", 
+                           (robot_x + 10, robot_y + 70), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
         
         # Display orientations
         cv2.putText(output, f"Robot Orientation: {grid_relative_orientation:.1f}°", 
@@ -149,53 +153,47 @@ def find_robot(frame, grid_overlay=None, hsv_ranges=None):
     
     return None, None, None, output
 
-def get_grid_north_angle(grid_overlay, grid_x, grid_y):
+def get_grid_north_angle(grid_overlay, robot_x, robot_y):
     """
-    Calculate the angle of the grid's North direction based on the grid cell containing the robot.
+    Calculate the angle of the grid's North direction based on the robot's position in the grid.
     North is defined as perpendicular to the horizontal grid line.
     
     Args:
         grid_overlay: GridOverlay object
-        grid_x, grid_y: Grid coordinates of the robot
+        robot_x, robot_y: Robot coordinates in pixels
     
     Returns:
         float: Angle in degrees where 0 is the positive x-axis of the frame
     """
-    if not hasattr(grid_overlay, 'transformed_horizontal_lines'):
-        # If we don't have transformed lines, try to infer angle from the grid's orientation
-        # This is a fallback - ideally, the grid overlay should provide transformed lines
-        if hasattr(grid_overlay, 'angle'):
-            return grid_overlay.angle
-        return 0  # Default to 0 degrees if no grid information is available
+    # Check if we have a perspective transform matrix
+    if grid_overlay.matrix is None:
+        return 0  # Default if no grid transform is available
     
-    # Find the nearest horizontal grid line above the robot
-    robot_y_in_pixels = grid_y * grid_overlay.cell_height
+    # We'll determine grid North by looking at how the grid's Y-axis is transformed
+    # First, get the grid coordinate of the robot
+    grid_cell = grid_overlay.get_coordinate_from_pixel(robot_x, robot_y)
+    if grid_cell == (-1, -1):
+        return 0  # Robot is outside valid grid area
     
-    # Get all horizontal grid lines
-    horizontal_lines = grid_overlay.transformed_horizontal_lines
+    # Get the perspective transform matrix
+    matrix = grid_overlay.matrix
     
-    # Find the nearest horizontal line above the robot
-    lines_above = [line for line in horizontal_lines 
-                  if line[0][1] <= robot_y_in_pixels and line[1][1] <= robot_y_in_pixels]
+    # Calculate the grid's North direction (negative Y-axis in grid coordinates)
+    # Take two points along the grid's Y-axis
+    p1 = np.array([[0.5, 0]], dtype=np.float32).reshape(-1, 1, 2) * 100  # Top middle point
+    p2 = np.array([[0.5, 1]], dtype=np.float32).reshape(-1, 1, 2) * 100  # Bottom middle point
     
-    if not lines_above:
-        # If no lines above, use the top grid line
-        if horizontal_lines:
-            nearest_line = horizontal_lines[0]
-        else:
-            return 0  # Default if no lines are available
-    else:
-        # Find the closest line above
-        nearest_line = max(lines_above, key=lambda line: line[0][1])
+    # Transform these points to get the direction in the image
+    warped_p1 = cv2.perspectiveTransform(p1, matrix)[0][0]
+    warped_p2 = cv2.perspectiveTransform(p2, matrix)[0][0]
     
-    # Calculate the angle of the line (horizontal grid line)
-    x1, y1 = nearest_line[0]
-    x2, y2 = nearest_line[1]
+    # Calculate the angle of this line (grid's North)
+    dx = warped_p2[0] - warped_p1[0]
+    dy = warped_p2[1] - warped_p1[1]
     
-    # Calculate angle (horizontal grid lines run perpendicular to North)
-    # North is 90 degrees rotated from the horizontal line angle
-    line_angle = math.degrees(math.atan2(y2 - y1, x2 - x1))
-    north_angle = (line_angle + 90) % 360
+    # Calculate angle (grid North is the negative of this direction since Y increases downward)
+    north_angle = math.degrees(math.atan2(-dy, dx))
+    north_angle = (north_angle + 180) % 360  # Adjust to get grid North
     
     return north_angle
 
@@ -233,7 +231,9 @@ def debug_robot_detection():
     print("Starting robot detection debug window...")
     
     # Initialize the camera
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(1)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
     if not cap.isOpened():
         print("Error: Could not open camera.")
         # Return default values if camera fails
@@ -676,3 +676,93 @@ def debug_robot_detection():
         np.array([green_h_min, green_s_min, green_v_min]),
         np.array([green_h_max, green_s_max, green_v_max])
     )
+
+def draw_robot_detection_overlay(frame, robot_x=None, robot_y=None, orientation=None, blue_center=None, green_center=None, scale=0.5):
+    """
+    Creates a dedicated visualization frame showing robot detection details
+    
+    Args:
+        frame: Original image frame
+        robot_x, robot_y: Robot center coordinates (if detected)
+        orientation: Robot orientation in degrees (if detected)
+        blue_center: Coordinates of blue marker center (if detected)
+        green_center: Coordinates of green marker center (if detected)
+        scale: Scale factor for the visualization (default 0.5)
+        
+    Returns:
+        Visualization frame with robot detection overlay
+    """
+    # Create a clean copy of the frame for visualization
+    vis_frame = frame.copy()
+    
+    # Create background with grid
+    h, w = vis_frame.shape[:2]
+    grid_spacing = 50
+    
+    # Draw grid lines
+    for x in range(0, w, grid_spacing):
+        cv2.line(vis_frame, (x, 0), (x, h), (50, 50, 50), 1)
+    for y in range(0, h, grid_spacing):
+        cv2.line(vis_frame, (0, y), (w, y), (50, 50, 50), 1)
+    
+    # Add title and border
+    title_bar = np.ones((40, w, 3), dtype=np.uint8) * 50
+    cv2.putText(title_bar, "Robot Detection Visualization", (10, 30), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    vis_frame = np.vstack([title_bar, vis_frame])
+    
+    # Draw markers and robot if detected
+    if blue_center and green_center:
+        # Draw blue marker with rectangle
+        cv2.circle(vis_frame, blue_center, 10, (173, 176, 130), -1)  # Fill circle
+        cv2.rectangle(vis_frame, 
+                     (blue_center[0] - 15, blue_center[1] - 15), 
+                     (blue_center[0] + 15, blue_center[1] + 15), 
+                     (173, 176, 130), 2)
+        cv2.putText(vis_frame, "Blue", (blue_center[0] + 20, blue_center[1]), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (173, 176, 130), 2)
+        
+        # Draw green marker with rectangle
+        cv2.circle(vis_frame, green_center, 10, (128, 244, 239), -1)  # Fill circle
+        cv2.rectangle(vis_frame, 
+                     (green_center[0] - 15, green_center[1] - 15), 
+                     (green_center[0] + 15, green_center[1] + 15), 
+                     (128, 244, 239), 2)
+        cv2.putText(vis_frame, "Green", (green_center[0] + 20, green_center[1]), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (128, 244, 239), 2)
+        
+        # Draw robot center and orientation line
+        if robot_x is not None and robot_y is not None:
+            robot_center = (robot_x, robot_y)
+            cv2.circle(vis_frame, robot_center, 7, (0, 255, 0), -1)  # Robot center
+            
+            # Draw line between markers
+            cv2.line(vis_frame, green_center, blue_center, (0, 255, 0), 2)
+            
+            # Draw orientation direction with arrow
+            if orientation is not None:
+                # Calculate end point of orientation arrow (longer than the robot)
+                length = 100  # Length of the direction arrow
+                end_x = int(robot_x + length * math.cos(math.radians(orientation)))
+                end_y = int(robot_y - length * math.sin(math.radians(orientation)))
+                
+                # Draw the arrow
+                cv2.arrowedLine(vis_frame, robot_center, (end_x, end_y), (0, 0, 255), 2, tipLength=0.2)
+                
+                # Display angle and position text
+                cv2.putText(vis_frame, f"Position: ({robot_x}, {robot_y})", (10, vis_frame.shape[0] - 60), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                cv2.putText(vis_frame, f"Orientation: {orientation:.1f}°", (10, vis_frame.shape[0] - 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+    else:
+        # If robot not detected
+        cv2.putText(vis_frame, "Robot not detected", (10, vis_frame.shape[0] - 30), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+    
+    # Resize visualization if needed
+    if scale != 1.0:
+        new_w = int(vis_frame.shape[1] * scale)
+        new_h = int(vis_frame.shape[0] * scale)
+        vis_frame = cv2.resize(vis_frame, (new_w, new_h))
+    
+    return vis_frame
