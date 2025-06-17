@@ -348,7 +348,7 @@ def debug_robot_detection():
             
             # Create a threshold range around the clicked value with wider margins
             h_margin = 25  # Increased margin for better detection
-            s_margin = 50
+            s_margin = 35
             v_margin = 70
             
             # Convert to Python int to prevent overflow during arithmetic operations
@@ -389,8 +389,8 @@ def debug_robot_detection():
             h, s, v = global_hsv[y, x]
             
             # Create a threshold range around the clicked value with wider margins
-            h_margin = 25  # Increased margin for better detection
-            s_margin = 50
+            h_margin = 25
+            s_margin = 35
             v_margin = 70
             
             # Convert to Python int to prevent overflow during arithmetic operations
