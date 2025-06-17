@@ -175,7 +175,7 @@ while True:
 
     original_frame = frame.copy()
 
-    # Only detect balls and robot position after connected
+    # Detect balls and robot
     if connected.is_set():
         if not printed_searching:
             print("Searching for balls and robot position...")
@@ -183,28 +183,24 @@ while True:
             ball_data = find_ping_pong_balls(original_frame, grid_overlay)
             frame = draw_ball_detections(frame, ball_data)
 
-            # Display ball coordinates
-            white_txt = f"White: {len(ball_data['white_balls']['grid'])} balls"
-            orange_txt = f"Orange: {len(ball_data['orange_balls']['grid'])} balls"
-            cv2.putText(frame, white_txt, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-            cv2.putText(frame, orange_txt, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
-
-        # Print coordinates in the grid to console
-        if ball_data['white_balls']['grid']:
-            print("White ball grid coordinates:", ball_data['white_balls']['grid'])
-        if ball_data['orange_balls']['grid']:
-            print("Orange ball grid coordinates:", ball_data['orange_balls']['grid'])
-
-    # Draw grid overlay after ball detection
+    # Draw grid and path overlays
     frame = grid_overlay.draw(frame)
 
-    # Connection and detection status
-    status_text = "Press 'C' to Connect" if not connected.is_set() else "Connected"
-    cv2.putText(frame, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
-
-    # Draw any paths found by A*
     if latest_path:
         frame = draw_astar_path(frame, latest_path, grid_overlay)
+
+    # Draw status + ball info text on top of all overlays
+    text_y = 30
+    line_height = 30
+    status_text = "Press 'C' to Connect" if not connected.is_set() else "Connected"
+    white_txt = f"White: {len(ball_data['white_balls']['grid'])} balls"
+    orange_txt = f"Orange: {len(ball_data['orange_balls']['grid'])} balls"
+
+    cv2.putText(frame, status_text, (10, text_y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
+    text_y += line_height
+    cv2.putText(frame, white_txt, (10, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    text_y += line_height
+    cv2.putText(frame, orange_txt, (10, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
 
     cv2.imshow(WINDOW_NAME, frame)
 
@@ -229,40 +225,40 @@ while True:
             closest = AStar.get_closest_nodes(start_node, unvisited, grid, n=1)
             tsp_path.extend(AStar.tsp_brute_force(start_node, closest, grid))
 
-            if is_dropoff_time:
-                dropoff_node = grid.get_dropoff(dropoffset=1, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
-                path = AStar.find_path(start_node, dropoff_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
-                if path:
-                    latest_path = path
-                    try:
-                        path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
-                        move_command = f"DROPOFF {path_str}\n"
-                        client_socket.sendall(move_command.encode())
-                        print(f"Sent COMMAND: {move_command.strip()}")
-                        awaiting_response = True
-                        is_dropoff_time = False 
-                    except Exception as e:
-                        print(f"Error sending dropoff: {e}")
-                else:
-                    print("No valid path to dropoff, skipping.")
+        if is_dropoff_time:
+            dropoff_node = grid.get_dropoff(dropoffset=1, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
+            path = AStar.find_path(start_node, dropoff_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
+            if path:
+                latest_path = path
+                try:
+                    path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                    move_command = f"DROPOFF {path_str}\n"
+                    client_socket.sendall(move_command.encode())
+                    print(f"Sent COMMAND: {move_command.strip()}")
+                    awaiting_response = True
+                    is_dropoff_time = False 
+                except Exception as e:
+                    print(f"Error sending dropoff: {e}")
+            else:
+                print("No valid path to dropoff, skipping.")
 
-            elif tsp_path:
-                next_node = tsp_path.pop(0)
-                path = AStar.find_path(start_node, next_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
-                if path:
-                    latest_path = path
-                    try:
-                        path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
-                        move_command = f"MOVE {path_str}\n"
-                        client_socket.sendall(move_command.encode())
-                        print(f"Sent COMMAND: {move_command.strip()}")
-                        visited_balls.add((next_node.x, next_node.y))
-                        awaiting_response = True
-                        is_dropoff_time = True  # 
-                    except Exception as e:
-                        print(f"Error sending move: {e}")
-                else:
-                    print("No valid path to next ball, skipping.")
+        elif tsp_path:
+            next_node = tsp_path.pop(0)
+            path = AStar.find_path(start_node, next_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
+            if path:
+                latest_path = path
+                try:
+                    path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                    move_command = f"MOVE {path_str}\n"
+                    client_socket.sendall(move_command.encode())
+                    print(f"Sent COMMAND: {move_command.strip()}")
+                    visited_balls.add((next_node.x, next_node.y))
+                    awaiting_response = True
+                    is_dropoff_time = True
+                except Exception as e:
+                    print(f"Error sending move: {e}")
+            else:
+                print("No valid path to next ball, skipping.")
 
 
     # --- Key Handling ---
