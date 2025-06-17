@@ -235,6 +235,7 @@ while True:
         start_node = None
         target_node = None
         awaiting_response = False
+        is_dropoff_time = False
 
         # Clear ball detections
         ball_data['white_balls']['pixels'].clear()

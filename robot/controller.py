@@ -95,8 +95,7 @@ class Controller:
         current_gyro = self.gyro_sensor.angle()
 
         # Check if the target is already in the right direction
-        if abs(angle - current_gyro) >= ROTATE_CORRECTION_THRESHOLD:
-            self.rotate_to(angle)
+        self.rotate_to(angle)
 
         if self.reset_requested:
             self.left_motor.stop(Stop.BRAKE)
@@ -149,7 +148,7 @@ class Controller:
         try:
             self.drive_base.stop()
  
-            current_gyro = self.gyro_sensor.angle()
+            current_gyro = self.normalize_angle(self.gyro_sensor.angle())
             delta = self.angle_diff(target_angle, current_gyro)
 
             self.drive_base.settings(turn_rate=ROTATE_SPEED, turn_acceleration=ROTATE_ACCLERATION)
@@ -158,6 +157,8 @@ class Controller:
             # Primary rotation
             print("Rotating from {} to {} (delta: {})".format(current_gyro, target_angle, delta))
             self.drive_base.turn(delta)
+
+            self.gyro_sensor.reset_angle(target_angle)
 
         except OSError as e:
             print("Rotation EPERM error:", e)
@@ -171,6 +172,10 @@ class Controller:
         """Calculate minimal difference between two angles (degrees), result in [-180, 180]."""
         diff = (target - current + 180) % 360 - 180
         return diff
+
+    def normalize_angle(self, angle):
+        """Normalize any angle to the [0, 360) range."""
+        return angle % 360
 
     def fetch_ball(self, target_node: Node):
         """Rotates toward and drives to the ball from current node, and spins to pick it up."""
@@ -186,10 +191,8 @@ class Controller:
             ydiff = target_node.y - self.current_node.y
 
             angle = self.offset_to_angle(xdiff, ydiff)
-            current_gyro = self.gyro_sensor.angle()
-
-            if abs(angle - current_gyro) >= ROTATE_CORRECTION_THRESHOLD:
-                self.rotate_to(angle)
+  
+            self.rotate_to(angle)
 
             # Drive to ball
             distance = self.grid.get_distance(self.current_node, target_node)
