@@ -99,7 +99,9 @@ class Controller:
         current_gyro = self.gyro_sensor.angle()
 
         # Check if the target is already in the right direction
-        self.rotate_to(angle)
+        if abs(angle - current_gyro) > ROTATE_CORRECTION_THRESHOLD:
+            self.rotate_to(angle)
+            # TODO: Implement camera check
 
         if self.reset_requested:
             self.left_motor.stop(Stop.BRAKE)
@@ -228,7 +230,7 @@ class Controller:
             self.spinner_motor.run_angle(-SPINNER_SPEED, 180, then=Stop.BRAKE, wait=True)
 
             # Wait to let ball roll out
-            wait(1000)  # Wait 1 second (1000 ms)
+            wait(2000)  # Wait 1 second (1000 ms)
 
             # Reset back to pickup position
             self.reset_spinner()

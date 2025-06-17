@@ -200,21 +200,6 @@ while True:
 
     # --- Automated Ball Path Execution ---
     if connected.is_set() and not awaiting_response:
-        all_balls = ball_data['white_balls']['grid'] + ball_data['orange_balls']['grid']
-        unvisited = [coord for coord in all_balls if coord not in visited_balls]
-
-        if not tsp_path and unvisited:
-            if not start_node:
-                if grid_overlay.start_point:
-                    sx, sy = grid_overlay.start_point
-                    start_node = grid.get_node(sx, sy)
-                else:
-                    start_node = grid.get_node(0, 0)
-                    print("Default start node used.")
-
-            closest = AStar.get_closest_nodes(start_node, unvisited, grid, n=1)
-            tsp_path.extend(AStar.tsp_brute_force(start_node, closest, grid))
-
         if is_dropoff_time:
             dropoff_node = grid.get_dropoff(dropoffset=1, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
             path = AStar.find_path(start_node, dropoff_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
@@ -226,7 +211,7 @@ while True:
                     client_socket.sendall(move_command.encode())
                     print(f"Sent COMMAND: {move_command.strip()}")
                     awaiting_response = True
-                    is_dropoff_time = False 
+                    is_dropoff_time = False
                 except Exception as e:
                     print(f"Error sending dropoff: {e}")
             else:
@@ -249,6 +234,23 @@ while True:
                     print(f"Error sending move: {e}")
             else:
                 print("No valid path to next ball, skipping.")
+
+        elif not tsp_path:
+            all_balls = ball_data['white_balls']['grid'] + ball_data['orange_balls']['grid']
+            unvisited = [coord for coord in all_balls if coord not in visited_balls]
+
+            if unvisited:
+                if not start_node:
+                    if grid_overlay.start_point:
+                        sx, sy = grid_overlay.start_point
+                        start_node = grid.get_node(sx, sy)
+                    else:
+                        start_node = grid.get_node(0, 0)
+                        print("Default start node used.")
+
+                closest = AStar.get_closest_nodes(start_node, unvisited, grid, n=1)
+                tsp_path.extend(AStar.tsp_brute_force(start_node, closest, grid))
+    
 
 
     # --- Key Handling ---
