@@ -161,10 +161,10 @@ while True:
             print("Searching for balls and robot position...")
             printed_searching = True
 
-        with suppress_stdout():
-            # Detect robot using calibrated HSV values
-            robot_x, robot_y, robot_orientation, robot_frame = find_robot(original_frame, grid_overlay, hsv_ranges)
 
+            # Detect robot using calibrated HSV values
+            robot_x_pixels, robot_y_pixels, robot_orientation, robot_frame = find_robot(original_frame, grid_overlay, hsv_ranges)
+            robot_x, robot_y = grid_overlay.get_coordinate_from_pixel(robot_x_pixels, robot_y_pixels)
             ball_data = find_ping_pong_balls(original_frame, grid_overlay)
             frame = draw_ball_detections(frame, ball_data)
 
