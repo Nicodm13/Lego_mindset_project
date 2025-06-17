@@ -42,7 +42,7 @@ class Controller:
         # Display message
         self.ev3.screen.print("Controller Ready")
 
-    def navigate_to_target(self, path: list[Node]):
+    def navigate_to_target(self, path: list[Node], is_dropoff: bool):
         """Follow a given path sent from PC."""
         if(self.reset_requested):
             return
@@ -50,11 +50,11 @@ class Controller:
         if path and len(path) >= 2:
             print("Navigating to path with {} nodes".format(len(path)))
             self.current_node = path[0]
-            self.follow_path(path)
+            self.follow_path(path, is_dropoff)
         else:
             self.ev3.screen.print("Invalid or short path")
 
-    def follow_path(self, path):
+    def follow_path(self, path, is_dropoff):
         """Follow a path of nodes by driving to each of them in order.
 
         Args:
@@ -69,8 +69,12 @@ class Controller:
             self.move_to(path[i-1], path[i])
             i += 1
 
-        # Fetch the ball after reaching the last node
-        if len(path) >= 2:
+        # Fetch or drop off ball
+        if not len(path) >= 2:
+            pass
+        elif is_dropoff:
+            print("I WOULD DROP OFF THE BALL BUT I HAVEN'T BEEN PROGRAMMED HOW TO DO OS YET")
+        else:
             self.fetch_ball(path[-1])
 
         # Notify PC when done
@@ -102,33 +106,6 @@ class Controller:
         distance = self.grid.get_distance(start, target)
         self.drive(distance)
         self.current_node = target
-
-    def move_to_dropoff(self, dropoffset: int):  # does not work as it uses the old navigate_to_target implementation
-        """Move the robot to one of the dropoffs.
-
-        Args:
-            dropoff (int): The chosen dropoff to go to. `-1` for west dropoff, `1` for east dropoff.
-                           _Also it's a portmanteau of dropoff and offset. Isn't it clever?!_
-        """
-        # density adjustment
-        effective_density = self.grid.density
-        if (effective_density % 2 == 0):
-            print("WARNING: grid density is even -> cannot navigate to middle of grid")
-            effective_density -= 1
-
-        # identify node to navigate to
-        node_y = effective_density / 2
-
-        i = 0
-        if dropoffset > 0:
-            i += 1
-        while not self.grid.grid.is_walkable(self.grid.grid[i * dropoffset][node_y]):
-            i += 1
-
-        node_x = i
-
-        # move to dropoff
-        self.navigate_to_target(self.grid.grid[node_x, node_y])
 
     def offset_to_angle(self, xdiff: int, ydiff: int) -> int:
         """Convert a rectangular offset to the corresponding angle, e.g., (1, -1) -> 45.
@@ -305,9 +282,7 @@ class Controller:
                                     self.ev3.screen.print("Invalid MOVE coord")
 
                         if len(coords) >= 2:
-                            self.navigate_to_target(coords)
-                            if is_dropoff:
-                                print("I WOULD DROP OFF THE BALL BUT I HAVEN'T BEEN PROGRAMMED HOW TO DO OS YET")
+                            self.navigate_to_target(coords, is_dropoff)
                         else:
                             self.ev3.screen.print("Invalid MOVE path")
 
