@@ -124,14 +124,14 @@ class Controller:
             return Direction.ANGLE_MAP[direction_name]
         except (KeyError, ValueError) as e:
             raise ValueError("Invalid offset ({}, {}) for direction lookup.".format(xdiff, ydiff)) from e
-    
+
     def drive(self, distance: float):
         """Drive forward a specific distance using DriveBase.straight() with safe control."""
         try:
             self.drive_base.stop()
 
             self.drive_base.settings(DRIVE_SPEED, DRIVE_ACCELERATION)
-   
+
             print("Driving: Distance={}, Speed={}".format(distance, DRIVE_SPEED))
             self.drive_base.straight(distance)
 
@@ -149,6 +149,8 @@ class Controller:
             self.drive_base.stop()
  
             current_gyro = self.normalize_angle(self.gyro_sensor.angle())
+
+            current_gyro = self.gyro_sensor.angle()
             delta = self.angle_diff(target_angle, current_gyro)
 
             self.drive_base.settings(turn_rate=ROTATE_SPEED, turn_acceleration=ROTATE_ACCLERATION)
@@ -167,7 +169,7 @@ class Controller:
 
         finally:
             self.drive_base.stop()
-    
+
     def angle_diff(self, target, current):
         """Calculate minimal difference between two angles (degrees), result in [-180, 180]."""
         diff = (target - current + 180) % 360 - 180
@@ -203,7 +205,6 @@ class Controller:
         finally:
             self.reset_spinner()
             print("Ball fetched and spinner reset.")
-
 
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
