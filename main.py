@@ -47,15 +47,10 @@ tsp_path = []
 latest_path = []
 awaiting_response = False
 is_dropoff_time = False
-
-# Ball detection state
-detect_balls = False
 ball_data = {
     'white_balls': {'pixels': [], 'grid': []},
     'orange_balls': {'pixels': [], 'grid': []}
 }
-
-# Robot state tracking
 robot_position = None
 robot_orientation = None
 orientation_corrected = False
@@ -265,9 +260,6 @@ while True:
     elif key == ord('c') and not connected.is_set():
         connection_failed.clear()
         threading.Thread(target=connect_to_robot, daemon=True).start()
-    elif key == ord('d'):
-        detect_balls = not detect_balls
-        print("Ball detection enabled" if detect_balls else "Ball detection disabled")
     elif key == ord('r'):
         visited_balls.clear()
         tsp_path.clear()

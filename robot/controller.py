@@ -77,7 +77,7 @@ class Controller:
         if not len(path) >= 2:
             pass
         elif is_dropoff:
-            print("I WOULD DROP OFF THE BALL BUT I HAVEN'T BEEN PROGRAMMED HOW TO DO OS YET")
+            self.drop_off_ball()
         else:
             self.fetch_ball(path[-1])
 
@@ -218,6 +218,26 @@ class Controller:
         finally:
             self.reset_spinner()
             print("Ball fetched and spinner reset.")
+
+    def drop_off_ball(self):
+        """Drops off the ball by reversing the spinner briefly and then resetting."""
+        print("Dropping off ball...")
+
+        try:
+            # Spin backward to release ball (e.g. 180° in opposite direction)
+            self.spinner_motor.run_angle(-SPINNER_SPEED, 180, then=Stop.BRAKE, wait=True)
+
+            # Wait to let ball roll out
+            wait(1000)  # Wait 1 second (1000 ms)
+
+            # Reset back to pickup position
+            self.reset_spinner()
+
+            print("Ball dropped off and spinner reset.")
+
+        except OSError as e:
+            print("Drop-off error:", e)
+            self.spinner_motor.stop(Stop.BRAKE)
 
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
