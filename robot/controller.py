@@ -34,8 +34,7 @@ class Controller:
         self.spinner_motor = Motor(Port.C)
 
         # Initialize Sensors
-        self.gyro_sensor = GyroSensor(Port.S2)
-        self.us_sensor = UltrasonicSensor(Port.S1)
+        self.gyro_sensor = GyroSensor(Port.S1)
 
         # Active socket connection (set in start_server)
         self.conn = None
@@ -168,15 +167,6 @@ class Controller:
 
         finally:
             self.drive_base.stop()
-
-    def on_wall_too_close(self):
-        """Behavior triggered when the ultrasonic sensor detects the robot being too close to a wall.
-        What "too close" means is defined by the method calling this.
-        """
-        self.left_motor.brake()
-        self.right_motor.brake()
-        print("WARNING: Wall too close, stopping and continuing")
-
 
     def rotate_to(self, target_angle: float):
         """Rotate to target using gyro feedback with minimal unnecessary corrections."""

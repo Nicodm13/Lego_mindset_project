@@ -15,7 +15,7 @@ from util.find_balls import find_ping_pong_balls, draw_ball_detections
 from util.path_visualizer import draw_astar_path
 
 # --- Global Variables ---
-robot_ip = "192.168.168.19"
+robot_ip = "192.168.113.19"
 client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
@@ -26,6 +26,7 @@ target_node = None
 tsp_path = []
 latest_path = []
 awaiting_response = False
+is_dropoff_time = True
 
 # Ball detection state
 detect_balls = False
