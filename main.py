@@ -17,7 +17,7 @@ from util.path_visualizer import draw_astar_path
 from util.find_robot import debug_robot_detection, find_robot
 
 # --- Global Variables ---
-robot_ip = "192.168.168.19"
+robot_ip = "192.168.113.19"
 client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
@@ -69,7 +69,7 @@ def handle_obstacle_marked(gx, gy):
 grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
 
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 ret, frame = cap.read()
 if not ret:
     print("Webcam couldn't be opened.")
@@ -131,10 +131,16 @@ def listen_for_robot():
                 parts = message.split()
                 if len(parts) == 2:
                     try:
-                        x_str, y_str = parts[1].split(",")
-                        x, y = int(x_str), int(y_str)
-                        start_node = grid.get_node(x, y)
-                        print(f"Updated robot position to: ({x}, {y})")
+                        # x_str, y_str = parts[1].split(",")
+                        # x, y = int(x_str), int(y_str)
+                        # Detect robot using calibrated HSV values
+                        robot_x_pixels, robot_y_pixels, robot_orientation, robot_frame = find_robot(original_frame,
+                                                                                                    grid_overlay,
+                                                                                                    hsv_ranges)
+                        print(f"Robot position: ({robot_x_pixels}, {robot_y_pixels})")
+                        robot_x, robot_y = grid_overlay.get_coordinate_from_pixel(robot_x_pixels, robot_y_pixels)
+                        start_node = grid.get_node(robot_x, robot_y)
+                        print(f"Updated robot position to: ({robot_x}, {robot_y})")
                     except Exception as e:
                         print(f"Failed to parse DONE position: {e}")
                 else:
@@ -160,11 +166,6 @@ while True:
         if not printed_searching:
             print("Searching for balls and robot position...")
             printed_searching = True
-
-
-            # Detect robot using calibrated HSV values
-            robot_x_pixels, robot_y_pixels, robot_orientation, robot_frame = find_robot(original_frame, grid_overlay, hsv_ranges)
-            robot_x, robot_y = grid_overlay.get_coordinate_from_pixel(robot_x_pixels, robot_y_pixels)
             ball_data = find_ping_pong_balls(original_frame, grid_overlay)
             frame = draw_ball_detections(frame, ball_data)
 
