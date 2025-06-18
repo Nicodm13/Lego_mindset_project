@@ -181,8 +181,9 @@ while True:
 
     # Draw grid and path overlays
     frame = grid_overlay.draw(frame)
-# Detect robot
-    robot_x_pixels, robot_y_pixels, robot_orientation, frame = find_robot(original_frame, grid_overlay, hsv_ranges)
+
+    # Detect robot
+    # robot_x_pixels, robot_y_pixels, robot_orientation, frame = find_robot(original_frame, grid_overlay, hsv_ranges)
 
     if latest_path:
         frame = draw_astar_path(frame, latest_path, grid_overlay)
