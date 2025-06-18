@@ -224,7 +224,15 @@ class Controller:
             print("Driving to ball at ({}, {}) with distance {}".format(target_node.x, target_node.y, distance))
             self.drive_base.straight(distance)
 
+            start_node = self.current_node
             self.current_node = target_node
+            
+            # Reverse a tile
+            distance = self.grid.get_distance(self.current_node, start_node)
+
+            self.drive(-distance, speed=DRIVE_SPEED, acceleration=DRIVE_ACCELERATION)
+            self.current_node = start_node
+            
         finally:
             self.reset_spinner()
             print("Ball fetched and spinner reset.")
