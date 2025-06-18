@@ -157,6 +157,7 @@ def listen_for_robot():
         print(f"Listener disconnected: {e}")
         connected.clear()
 
+
 # --- Main Loop ---
 while True:
     ret, frame = cap.read()
@@ -173,6 +174,16 @@ while True:
     # Detect robot
     robot_position, robot_orientation, frame = get_robot_position_and_angle(original_frame, grid_overlay)
     
+    # if robot_position and robot_orientation and connected.is_set():
+      #  gx, gy = robot_position
+       # orientation = round(robot_orientation, 2)
+       # pose_msg = f"POSE {{{gx},{gy}}} {orientation}\n"
+       # try:
+        #    client_socket.sendall(pose_msg.encode())
+         #   print(f"Sent COMMAND: {pose_msg.strip()}")
+        # except Exception as e:
+         #   print(f"Error sending POSE: {e}")
+
     # Draw grid and path overlays
     frame = grid_overlay.draw(frame)
 

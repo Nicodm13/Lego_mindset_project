@@ -353,6 +353,25 @@ class Controller:
                                 except Exception:
                                     self.ev3.screen.print("Invalid OBST")
 
+                    elif command.startswith("POSE"):
+                        try:
+                            parts = command.split()
+                            if len(parts) == 3:
+                                coords = parts[1]
+                                angle = float(parts[2])
+                                gx, gy = map(int, coords.strip("{}").split(","))
+
+                                self.current_node = self.grid.get_node(gx, gy)
+                                self.current_orientation = angle
+                                self.gyro_sensor.reset_angle(angle)
+
+                                #print(f"Updated pose: Node=({gx},{gy}) Angle={angle}°")
+                                # self.ev3.screen.print(f"POSE: ({gx},{gy}) {angle:.1f}°")
+                            else:
+                                print("Invalid POSE format")
+                        except Exception as e:
+                            print("Failed to parse POSE:", e)
+                            
                     elif command.startswith("MOVE") or command.startswith("DROPOFF"):
                         is_dropoff = command.startswith("DROPOFF")
                         parts = command.split()

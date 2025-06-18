@@ -133,7 +133,6 @@ def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
                 (0, 255, 0),
                 2
             )
-            print(f"Absolute angle: {absolute_angle:.2f}°, Grid North: {grid_north_angle:.2f}°, Relative: {angle_deg:.2f}°")
 
             return grid_pos, angle_deg, annotated_frame
 
