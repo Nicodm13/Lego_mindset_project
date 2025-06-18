@@ -3,7 +3,7 @@ import numpy as np
 
 ARUCO_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 
-def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
+def get_robot_position_and_angle_old(frame, grid_overlay, marker_id=0):
     """
     Detects the ArUco marker and returns robot's grid position and orientation.
     - frame: input image
@@ -48,3 +48,76 @@ def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
     cv2.arrowedLine(frame, (center_x, center_y), tip, (255, 0, 0), 2)
 
     return grid_pos, angle_deg, frame
+
+
+def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
+    """
+    Detects the ArUco marker with enhanced reliability. By running multiple preprocessing techniques.
+    Slower than get_robot_position_and_angle, but more robust against noise and lighting changes.
+    """
+    # Create a copy for annotations
+    annotated_frame = frame.copy()
+
+    # Convert to grayscale
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    # Image preprocessing variations
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(blurred)
+
+    # Create detector with improved parameters
+    params = cv2.aruco.DetectorParameters()
+    params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+    params.adaptiveThreshWinSizeMin = 3
+    params.adaptiveThreshWinSizeMax = 23
+    params.adaptiveThreshWinSizeStep = 10
+    params.adaptiveThreshConstant = 7
+    detector = cv2.aruco.ArucoDetector(ARUCO_DICT, params)
+
+    # Try detection with different preprocessed images
+    detection_attempts = [
+        (gray, "Original"),
+        (blurred, "Blurred"),
+        (enhanced, "Enhanced")
+    ]
+
+    for img, method_name in detection_attempts:
+        corners, ids, rejected = detector.detectMarkers(img)
+
+        if ids is not None and marker_id in ids:
+            idx = np.where(ids == marker_id)[0][0]
+
+            # Draw marker
+            cv2.aruco.drawDetectedMarkers(annotated_frame, [corners[idx]], np.array([ids[idx]]))
+
+            # Get marker corners
+            marker_corners = corners[idx][0]
+
+            # Get center of marker
+            center = np.mean(marker_corners, axis=0)
+            center_x, center_y = int(center[0]), int(center[1])
+
+            # Get robot position in grid
+            grid_pos = grid_overlay.get_coordinate_from_pixel(center_x, center_y)
+
+            # Calculate angle
+            top_edge = marker_corners[1] - marker_corners[0]
+            angle_rad = np.arctan2(top_edge[1], top_edge[0])
+            angle_deg = (np.degrees(angle_rad) + 360) % 360
+
+            # Draw heading arrow
+            tip = (
+                int(center_x + 40 * np.cos(angle_rad)),
+                int(center_y + 40 * np.sin(angle_rad))
+            )
+            cv2.arrowedLine(annotated_frame, (center_x, center_y), tip, (255, 0, 0), 2)
+            #cv2.putText(annotated_frame, f"Method: {method_name}", (10, 60),
+            #           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+            return grid_pos, angle_deg, annotated_frame
+
+    # No successful detection
+    cv2.putText(annotated_frame, "No marker detected", (10, 60),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+    return None, None, annotated_frame
