@@ -20,7 +20,7 @@ def find_robot(frame, grid_overlay=None, hsv_ranges=None):
         If robot not found, returns (None, None, None, frame)
     """
     # Create a copy of the frame
-    output = frame.copy()
+    output_frame = frame.copy()
     
     # Convert to HSV color space for better color detection
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -85,10 +85,10 @@ def find_robot(frame, grid_overlay=None, hsv_ranges=None):
                     x, y, w, h = cv2.boundingRect(largest_blue)
 
                     # Draw blue marker on output image (using teal color to match marker)
-                    cv2.rectangle(output, (x, y), (x+w, y+h), (173, 176, 130), 2)
-                    cv2.drawContours(output, [largest_blue], 0, (173, 176, 130), 2)
+                    cv2.rectangle(output_frame, (x, y), (x+w, y+h), (173, 176, 130), 2)
+                    cv2.drawContours(output_frame, [largest_blue], 0, (173, 176, 130), 2)
                     # Mark center point
-                    cv2.drawMarker(output, blue_center, (173, 176, 130), cv2.MARKER_CROSS, 10, 2)
+                    cv2.drawMarker(output_frame, blue_center, (173, 176, 130), cv2.MARKER_CROSS, 10, 2)
 
     # Process green contours
     if green_contours:
@@ -119,10 +119,10 @@ def find_robot(frame, grid_overlay=None, hsv_ranges=None):
                     x, y, w, h = cv2.boundingRect(largest_green)
 
                     # Draw yellow-green marker on output image
-                    cv2.rectangle(output, (x, y), (x+w, y+h), (128, 244, 239), 2)
-                    cv2.drawContours(output, [largest_green], 0, (128, 244, 239), 2)
+                    cv2.rectangle(output_frame, (x, y), (x+w, y+h), (128, 244, 239), 2)
+                    cv2.drawContours(output_frame, [largest_green], 0, (128, 244, 239), 2)
                     # Mark center point
-                    cv2.drawMarker(output, green_center, (128, 244, 239), cv2.MARKER_CROSS, 10, 2)
+                    cv2.drawMarker(output_frame, green_center, (128, 244, 239), cv2.MARKER_CROSS, 10, 2)
 
     # If both markers are found, calculate robot position and orientation
     if blue_center and green_center:
@@ -142,8 +142,8 @@ def find_robot(frame, grid_overlay=None, hsv_ranges=None):
         absolute_orientation_deg = (absolute_orientation_deg + 360) % 360
         
         # Draw robot's center and orientation line
-        cv2.circle(output, (robot_x, robot_y), 7, (0, 255, 0), -1)
-        cv2.line(output, green_center, blue_center, (0, 255, 0), 2)
+        cv2.circle(output_frame, (robot_x, robot_y), 7, (0, 255, 0), -1)
+        cv2.line(output_frame, green_center, blue_center, (0, 255, 0), 2)
         
         # Adjust orientation relative to the grid
         grid_relative_orientation = absolute_orientation_deg
@@ -162,20 +162,20 @@ def find_robot(frame, grid_overlay=None, hsv_ranges=None):
                 grid_relative_orientation = (absolute_orientation_deg - grid_north_angle) % 360
                 
                 # Display grid North angle for debugging
-                cv2.putText(output, f"Grid North: {grid_north_angle:.1f}°", 
+                cv2.putText(output_frame, f"Grid North: {grid_north_angle:.1f}°",
                            (robot_x + 10, robot_y + 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
                 
                 # Add grid cell coordinates for debugging
-                cv2.putText(output, f"Grid Cell: ({grid_x}, {grid_y})", 
+                cv2.putText(output_frame, f"Grid Cell: ({grid_x}, {grid_y})",
                            (robot_x + 10, robot_y + 70), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
         
         # Display orientations
-        cv2.putText(output, f"Robot Orientation: {grid_relative_orientation:.1f}°", 
+        cv2.putText(output_frame, f"Robot Orientation: {grid_relative_orientation:.1f}°",
                    (robot_x + 10, robot_y + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
         
-        return robot_x, robot_y, grid_relative_orientation, output
+        return robot_x, robot_y, grid_relative_orientation, output_frame
     
-    return None, None, None, output
+    return None, None, None, output_frame
 
 def get_grid_north_angle(grid_overlay, robot_x, robot_y):
     """
