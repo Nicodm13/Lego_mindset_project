@@ -68,7 +68,7 @@ def handle_obstacle_marked(gx, gy):
 grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
 
 print("Opening webcam...")
-cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
@@ -179,12 +179,12 @@ while True:
         ball_data = find_ping_pong_balls(original_frame, grid_overlay)
         frame = draw_ball_detections(frame, ball_data)
 
-    # Draw grid and path overlays
-    frame = grid_overlay.draw(frame)
+
 
     # Detect robot
-    #robot_x_pixels, robot_y_pixels, robot_orientation, frame = find_robot(original_frame, grid_overlay, hsv_ranges)
-
+    robot_x_pixels, robot_y_pixels, robot_orientation, frame = find_robot(original_frame, grid_overlay, hsv_ranges)
+    # Draw grid and path overlays
+    frame = grid_overlay.draw(frame)
     if latest_path:
         frame = draw_astar_path(frame, latest_path, grid_overlay)
 

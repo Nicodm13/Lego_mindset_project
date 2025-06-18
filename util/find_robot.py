@@ -20,8 +20,8 @@ def find_robot(frame, grid_overlay=None, hsv_ranges=None):
         If robot not found, returns (None, None, None, frame)
     """
     # Create a copy of the frame
-    output_frame = frame.copy()
-    
+    # output_frame = frame.copy()
+    output_frame = frame
     # Convert to HSV color space for better color detection
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     
