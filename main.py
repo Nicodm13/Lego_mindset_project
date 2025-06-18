@@ -23,7 +23,7 @@ client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
 
-"""
+
 # Run HSV calibration at startup
 print("Starting HSV calibration for robot detection...")
 try:
@@ -40,7 +40,7 @@ except Exception as e:
         np.array([40, 255, 255])   # upper_green
     )
     print("Using default HSV values for robot detection")
-"""
+
 
 start_node = None
 visited_balls = set()
@@ -145,16 +145,16 @@ def listen_for_robot():
                         x_str, y_str = parts[1].split(",")
                         x, y = int(x_str), int(y_str)
 
-                        '''
+
                         # Detect robot using calibrated HSV values
                         robot_x_pixels, robot_y_pixels, robot_orientation, robot_frame = find_robot(original_frame,
                                                                                                     grid_overlay,
                                                                                                     hsv_ranges)
                         print(f"Robot position: ({robot_x_pixels}, {robot_y_pixels})")
                         robot_x, robot_y = grid_overlay.get_coordinate_from_pixel(robot_x_pixels, robot_y_pixels)
-                        '''
-                        
-                        start_node = grid.get_node(x, y)
+
+                        start_node = grid.get_node(robot_x, robot_y)
+                        #start_node = grid.get_node(x, y)
                         print(f"Updated robot position to: ({x}, {y})")
                     except Exception as e:
                         print(f"Failed to parse DONE position: {e}")
@@ -183,7 +183,7 @@ while True:
     frame = grid_overlay.draw(frame)
 
     # Detect robot
-    # robot_x_pixels, robot_y_pixels, robot_orientation, frame = find_robot(original_frame, grid_overlay, hsv_ranges)
+    robot_x_pixels, robot_y_pixels, robot_orientation, frame = find_robot(original_frame, grid_overlay, hsv_ranges)
 
     if latest_path:
         frame = draw_astar_path(frame, latest_path, grid_overlay)
