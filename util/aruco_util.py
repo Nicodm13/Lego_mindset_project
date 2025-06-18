@@ -12,7 +12,13 @@ def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
     Returns: (grid_x, grid_y), angle_deg, annotated_frame
     """
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    corners, ids, _ = cv2.aruco.detectMarkers(gray, ARUCO_DICT)
+
+    # For OpenCV 4.7.0+
+    detector = cv2.aruco.ArucoDetector(ARUCO_DICT)
+    corners, ids, rejected = detector.detectMarkers(gray)
+
+    # For older OpenCV versions (if needed):
+    # corners, ids, rejected = cv2.aruco.detectMarkers(gray, ARUCO_DICT)
 
     if ids is None or marker_id not in ids:
         return None, None, frame
@@ -21,8 +27,7 @@ def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
     marker_corners = corners[idx][0]
 
     # Draw marker for visualization
-    cv2.aruco.drawDetectedMarkers(frame, [marker_corners])
-
+    cv2.aruco.drawDetectedMarkers(frame, [corners[idx]], np.array([ids[idx]]))
     # Get center of marker in pixels
     center = np.mean(marker_corners, axis=0)
     center_x, center_y = int(center[0]), int(center[1])

@@ -14,7 +14,7 @@ from pathfinding.astar import AStar
 from util.grid_overlay import GridOverlay
 from util.find_balls import find_ping_pong_balls, draw_ball_detections
 from util.path_visualizer import draw_astar_path
-from util.find_robot import debug_robot_detection, find_robot, draw_robot_detection_overlay
+#from util.find_robot import debug_robot_detection, find_robot, draw_robot_detection_overlay
 from util.aruco_util import get_robot_position_and_angle
 import time
 
@@ -25,7 +25,7 @@ connection_failed = threading.Event()
 connected = threading.Event()
 
 # Run HSV calibration at startup
-print("Starting HSV calibration for robot detection...")
+'''print("Starting HSV calibration for robot detection...")
 try:
     # Get HSV ranges from the debug interface
     hsv_ranges = debug_robot_detection()
@@ -40,7 +40,7 @@ except Exception as e:
         np.array([40, 255, 255])   # upper_green
     )
     print("Using default HSV values for robot detection")
-
+'''
 start_node = None
 visited_balls = set()
 target_node = None
