@@ -63,21 +63,33 @@ def find_robot(frame, grid_overlay=None, hsv_ranges=None):
         
         # Only consider contours with sufficient area
         if cv2.contourArea(largest_blue) > 100:
-            M = cv2.moments(largest_blue)
-            if M["m00"] != 0:
-                blue_x = int(M["m10"] / M["m00"])
-                blue_y = int(M["m01"] / M["m00"])
-                blue_center = (blue_x, blue_y)
-                
-                # Get bounding rectangle for the square marker
-                x, y, w, h = cv2.boundingRect(largest_blue)
-                
-                # Draw blue marker on output image (using teal color to match marker)
-                cv2.rectangle(output, (x, y), (x+w, y+h), (173, 176, 130), 2)
-                cv2.drawContours(output, [largest_blue], 0, (173, 176, 130), 2)
-                # Mark center point
-                cv2.drawMarker(output, blue_center, (173, 176, 130), cv2.MARKER_CROSS, 10, 2)
-    
+            # Get approximated polygon of the contour
+            peri = cv2.arcLength(largest_blue, True)
+            approx = cv2.approxPolyDP(largest_blue, 0.04 * peri, True)
+
+            # Check if shape is rectangular (4 vertices)
+            # and has square-like aspect ratio
+            x, y, w, h = cv2.boundingRect(largest_blue)
+            aspect_ratio = float(w) / h
+            is_square_like = len(approx) >= 4 and 0.7 < aspect_ratio < 1.3
+
+            # Only proceed if the shape is square-like
+            if is_square_like:
+                M = cv2.moments(largest_blue)
+                if M["m00"] != 0:
+                    blue_x = int(M["m10"] / M["m00"])
+                    blue_y = int(M["m01"] / M["m00"])
+                    blue_center = (blue_x, blue_y)
+
+                    # Get bounding rectangle for the square marker
+                    x, y, w, h = cv2.boundingRect(largest_blue)
+
+                    # Draw blue marker on output image (using teal color to match marker)
+                    cv2.rectangle(output, (x, y), (x+w, y+h), (173, 176, 130), 2)
+                    cv2.drawContours(output, [largest_blue], 0, (173, 176, 130), 2)
+                    # Mark center point
+                    cv2.drawMarker(output, blue_center, (173, 176, 130), cv2.MARKER_CROSS, 10, 2)
+
     # Process green contours
     if green_contours:
         # Find largest green contour by area
@@ -85,21 +97,33 @@ def find_robot(frame, grid_overlay=None, hsv_ranges=None):
         
         # Only consider contours with sufficient area
         if cv2.contourArea(largest_green) > 100:
-            M = cv2.moments(largest_green)
-            if M["m00"] != 0:
-                green_x = int(M["m10"] / M["m00"])
-                green_y = int(M["m01"] / M["m00"])
-                green_center = (green_x, green_y)
-                
-                # Get bounding rectangle for the square marker
-                x, y, w, h = cv2.boundingRect(largest_green)
-                
-                # Draw yellow-green marker on output image
-                cv2.rectangle(output, (x, y), (x+w, y+h), (128, 244, 239), 2)
-                cv2.drawContours(output, [largest_green], 0, (128, 244, 239), 2)
-                # Mark center point
-                cv2.drawMarker(output, green_center, (128, 244, 239), cv2.MARKER_CROSS, 10, 2)
-    
+            # Get approximated polygon of the contour
+            peri = cv2.arcLength(largest_green, True)
+            approx = cv2.approxPolyDP(largest_green, 0.04 * peri, True)
+
+            # Check if shape is rectangular (4 vertices)
+            # and has square-like aspect ratio
+            x, y, w, h = cv2.boundingRect(largest_green)
+            aspect_ratio = float(w) / h
+            is_square_like = len(approx) >= 4 and 0.7 < aspect_ratio < 1.3
+
+            # Only proceed if the shape is square-like
+            if is_square_like:
+                M = cv2.moments(largest_green)
+                if M["m00"] != 0:
+                    green_x = int(M["m10"] / M["m00"])
+                    green_y = int(M["m01"] / M["m00"])
+                    green_center = (green_x, green_y)
+
+                    # Get bounding rectangle for the square marker
+                    x, y, w, h = cv2.boundingRect(largest_green)
+
+                    # Draw yellow-green marker on output image
+                    cv2.rectangle(output, (x, y), (x+w, y+h), (128, 244, 239), 2)
+                    cv2.drawContours(output, [largest_green], 0, (128, 244, 239), 2)
+                    # Mark center point
+                    cv2.drawMarker(output, green_center, (128, 244, 239), cv2.MARKER_CROSS, 10, 2)
+
     # If both markers are found, calculate robot position and orientation
     if blue_center and green_center:
         # Robot's center is the midpoint between the two markers
@@ -231,7 +255,7 @@ def debug_robot_detection():
     print("Starting robot detection debug window...")
     
     # Initialize the camera
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
     if not cap.isOpened():
@@ -347,9 +371,9 @@ def debug_robot_detection():
             h, s, v = global_hsv[y, x]
             
             # Create a threshold range around the clicked value with wider margins
-            h_margin = 25  # Increased margin for better detection
-            s_margin = 35
-            v_margin = 70
+            h_margin = 20  # Increased margin for better detection
+            s_margin = 30
+            v_margin = 50
             
             # Convert to Python int to prevent overflow during arithmetic operations
             h, s, v = int(h), int(s), int(v)
@@ -389,9 +413,9 @@ def debug_robot_detection():
             h, s, v = global_hsv[y, x]
             
             # Create a threshold range around the clicked value with wider margins
-            h_margin = 25
-            s_margin = 35
-            v_margin = 70
+            h_margin = 20
+            s_margin = 30
+            v_margin = 50
             
             # Convert to Python int to prevent overflow during arithmetic operations
             h, s, v = int(h), int(s), int(v)
