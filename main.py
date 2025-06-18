@@ -15,6 +15,7 @@ from util.grid_overlay import GridOverlay
 from util.find_balls import find_ping_pong_balls, draw_ball_detections
 from util.path_visualizer import draw_astar_path
 from util.find_robot import debug_robot_detection, find_robot, draw_robot_detection_overlay
+from util.aruco_util import get_robot_position_and_angle
 import time
 
 # --- Global Variables ---
@@ -170,9 +171,8 @@ while True:
         frame = draw_ball_detections(frame, ball_data)
 
     # Detect robot
-    robot_x_pixels, robot_y_pixels, robot_orientation, frame = find_robot(original_frame, grid_overlay, hsv_ranges)
-    robot_position = grid_overlay.get_coordinate_from_pixel(robot_x_pixels, robot_y_pixels)
-
+    robot_position, robot_orientation, frame = get_robot_position_and_angle(original_frame, grid_overlay)
+    
     # Draw grid and path overlays
     frame = grid_overlay.draw(frame)
 
