@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 
+from util.find_robot import get_grid_north_angle
+
 ARUCO_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 
 def get_robot_position_and_angle_old(frame, grid_overlay, marker_id=0):
@@ -53,12 +55,10 @@ def get_robot_position_and_angle_old(frame, grid_overlay, marker_id=0):
 def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
     """
     Detects the ArUco marker with enhanced reliability. By running multiple preprocessing techniques.
-    Slower than get_robot_position_and_angle, but more robust against noise and lighting changes.
+    Slower than get_robot_position_and_angle_old, but more robust against noise and lighting changes.
+    Returns: (grid_x, grid_y), angle_deg_relative_to_grid, annotated_frame
     """
-    # Create a copy for annotations
     annotated_frame = frame.copy()
-
-    # Convert to grayscale
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     # Image preprocessing variations
@@ -66,7 +66,6 @@ def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(blurred)
 
-    # Create detector with improved parameters
     params = cv2.aruco.DetectorParameters()
     params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
     params.adaptiveThreshWinSizeMin = 3
@@ -75,7 +74,6 @@ def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
     params.adaptiveThreshConstant = 7
     detector = cv2.aruco.ArucoDetector(ARUCO_DICT, params)
 
-    # Try detection with different preprocessed images
     detection_attempts = [
         (gray, "Original"),
         (blurred, "Blurred"),
@@ -83,15 +81,10 @@ def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
     ]
 
     for img, method_name in detection_attempts:
-        corners, ids, rejected = detector.detectMarkers(img)
+        corners, ids, _ = detector.detectMarkers(img)
 
         if ids is not None and marker_id in ids:
             idx = np.where(ids == marker_id)[0][0]
-
-            # Draw marker
-            cv2.aruco.drawDetectedMarkers(annotated_frame, [corners[idx]], np.array([ids[idx]]))
-
-            # Get marker corners
             marker_corners = corners[idx][0]
 
             # Get center of marker
@@ -102,9 +95,16 @@ def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
             grid_pos = grid_overlay.get_coordinate_from_pixel(center_x, center_y)
 
             # Calculate angle
-            top_edge = marker_corners[1] - marker_corners[0]
-            angle_rad = np.arctan2(top_edge[1], top_edge[0])
-            angle_deg = (np.degrees(angle_rad) + 360) % 360
+            top_edge_mid = (marker_corners[0] + marker_corners[1]) / 2
+            heading_vector = center - top_edge_mid
+            angle_rad = np.arctan2(heading_vector[1], heading_vector[0])
+            absolute_angle = (np.degrees(angle_rad) + 360) % 360
+
+            grid_north_angle = get_grid_north_angle(grid_overlay, center_x, center_y)
+            angle_deg = (absolute_angle + grid_north_angle + 360) % 360
+
+            # Draw marker outline
+            cv2.polylines(annotated_frame, [np.int32(marker_corners)], isClosed=True, color=(0, 255, 255), thickness=2)
 
             # Draw heading arrow
             tip = (
@@ -112,12 +112,32 @@ def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
                 int(center_y + 40 * np.sin(angle_rad))
             )
             cv2.arrowedLine(annotated_frame, (center_x, center_y), tip, (255, 0, 0), 2)
-            #cv2.putText(annotated_frame, f"Method: {method_name}", (10, 60),
-            #           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+            # Draw grid "North" arrow for visual debugging (yellow arrow)
+            north_dx = int(40 * np.cos(np.radians(grid_north_angle)))
+            north_dy = int(-40 * np.sin(np.radians(grid_north_angle)))
+            cv2.arrowedLine(
+                annotated_frame,
+                (center_x, center_y),
+                (center_x + north_dx, center_y + north_dy),
+                (0, 255, 255), 2
+            )
+
+            # Draw angle text instead of ID
+            cv2.putText(
+                annotated_frame,
+                f"{grid_pos} w/ deg({angle_deg:.1f})°",
+                (center_x + 10, center_y - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 0),
+                2
+            )
+            print(f"Absolute angle: {absolute_angle:.2f}°, Grid North: {grid_north_angle:.2f}°, Relative: {angle_deg:.2f}°")
 
             return grid_pos, angle_deg, annotated_frame
 
-    # No successful detection
+    # If marker not found, draw fallback message
     cv2.putText(annotated_frame, "No marker detected", (10, 60),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
     return None, None, annotated_frame
