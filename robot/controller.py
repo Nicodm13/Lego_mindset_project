@@ -66,7 +66,7 @@ class Controller:
         """
         
         i = 1
-        while i < len(path) - 1: # Stop at the previous node to the last one if not going to dropoff
+        while i < len(path) - 1:
             if(self.reset_requested):
                 return
             print("Step {}: From ({},{}) to ({},{})".format(i, path[i-1].x, path[i-1].y, path[i].x, path[i].y))
@@ -77,7 +77,7 @@ class Controller:
         if not len(path) >= 2:
             pass
         elif is_dropoff:
-            self.drop_off_ball()
+            self.drop_off_ball(self.current_node, path[-3])
         else:
             self.fetch_ball(path[-1])
 
@@ -131,14 +131,14 @@ class Controller:
         except (KeyError, ValueError) as e:
             raise ValueError("Invalid offset ({}, {}) for direction lookup.".format(xdiff, ydiff)) from e
 
-    def drive(self, distance: float):
+    def drive(self, distance: float, speed=DRIVE_SPEED, acceleration=DRIVE_ACCELERATION):
         """Drive forward a specific distance using DriveBase.straight() with safe control."""
         try:
             self.drive_base.stop()
 
-            self.drive_base.settings(DRIVE_SPEED, DRIVE_ACCELERATION)
+            self.drive_base.settings(speed, acceleration)
 
-            print("Driving: Distance={}, Speed={}".format(distance, DRIVE_SPEED))
+            print("Driving: Distance={}, Speed={}".format(distance, speed))
             self.drive_base.straight(distance)
 
         except OSError as e:
@@ -221,25 +221,40 @@ class Controller:
             self.reset_spinner()
             print("Ball fetched and spinner reset.")
 
-    def drop_off_ball(self):
-        """Drops off the ball by reversing the spinner briefly and then resetting."""
+    def drop_off_ball(self, start: Node, target: Node):
+        """
+        Drops off the ball by reversing the spinner briefly and then resetting.
+        Then drives 1 node backward before sending DONE.
+        """
         print("Dropping off ball...")
 
         try:
-            # Spin backward to release ball (e.g. 180° in opposite direction)
-            self.spinner_motor.run_angle(-SPINNER_SPEED, 180, then=Stop.BRAKE, wait=True)
+            if self.reset_requested:
+                self.left_motor.stop(Stop.BRAKE)
+                self.right_motor.stop(Stop.BRAKE)
+                return
+
+            # Spin backward to release ball
+            self.spinner_motor.run_angle(SPINNER_SPEED, 90, then=Stop.BRAKE, wait=True)
 
             # Wait to let ball roll out
-            wait(2000)  # Wait 1 second (1000 ms)
+            wait(2000)  # 2 second
 
-            # Reset back to pickup position
+            # Reset spinner to pickup position
             self.reset_spinner()
-
             print("Ball dropped off and spinner reset.")
+
+            # Get the distance to the previous node
+            distance = self.grid.get_distance(start, target)
+
+            # Reverse the distance
+            self.drive(-distance, speed=DRIVE_SPEED, acceleration=DRIVE_ACCELERATION)
+            self.current_node = target
 
         except OSError as e:
             print("Drop-off error:", e)
             self.spinner_motor.stop(Stop.BRAKE)
+
 
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
@@ -256,11 +271,11 @@ class Controller:
         # Get the current spinner angle, modulo 360 to keep within one rotation
         current_angle = self.spinner_motor.angle() % 360
 
-        # Calculate shortest path back to SPINNER_RESET_ANGLE (which is 0)
-        target = 0 % 360
+        # Calculate shortest path back to 0
+        target = 0 
         diff = (target - current_angle + 180) % 360 - 180  # Result is in [-180, 180]
 
-        print("Resetting spinner from {:.1f}° → rotating {:.1f}° to reach {}°".format(
+        print("Resetting spinner from {:.1f} rotating {:.1f} to reach {}".format(
             current_angle, diff, 0))
 
         # Perform relative turn
