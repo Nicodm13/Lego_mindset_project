@@ -23,7 +23,6 @@ client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
 
-'''
 # Run HSV calibration at startup
 print("Starting HSV calibration for robot detection...")
 try:
@@ -40,8 +39,6 @@ except Exception as e:
         np.array([40, 255, 255])   # upper_green
     )
     print("Using default HSV values for robot detection")
-
-'''
 
 start_node = None
 visited_balls = set()
@@ -69,7 +66,7 @@ def handle_obstacle_marked(gx, gy):
 grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
 
 print("Opening webcam...")
-cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
+cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
@@ -87,7 +84,7 @@ ret, frame = cap.read()
 if not ret:
     print("Webcam couldn't be opened.")
     exit()
-    
+
 # --- OpenCV Window Setup ---
 WINDOW_NAME = "Webcam Feed"
 cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
@@ -144,23 +141,11 @@ def listen_for_robot():
                 parts = message.split()
                 if len(parts) == 2:
                     try:
-                        x_str, y_str = parts[1].split(",")
-                        x, y = int(x_str), int(y_str)
+                        if robot_position:
+                            x, y = robot_position
+                            start_node = grid.get_node(x, y)
+                            print(f"Updated robot position to: ({x}, {y})")
 
-                        '''
-                        # Detect robot using calibrated HSV values
-                        robot_x_pixels, robot_y_pixels, robot_orientation, robot_frame = find_robot(original_frame,
-                                                                                                    grid_overlay,
-                                                                                                    hsv_ranges)
-                        print(f"Robot position: ({robot_x_pixels}, {robot_y_pixels})")
-                        robot_x, robot_y = grid_overlay.get_coordinate_from_pixel(robot_x_pixels, robot_y_pixels)
-
-                        start_node = grid.get_node(robot_x, robot_y)
-                        print(f"Updated robot position to: ({robot_x}, {robot_y})")
-                        '''
-
-                        start_node = grid.get_node(x, y)
-                        print(f"Updated robot position to: ({x}, {y})")
                     except Exception as e:
                         print(f"Failed to parse DONE position: {e}")
                 else:
@@ -184,12 +169,13 @@ while True:
         ball_data = find_ping_pong_balls(original_frame, grid_overlay)
         frame = draw_ball_detections(frame, ball_data)
 
-
-
     # Detect robot
     robot_x_pixels, robot_y_pixels, robot_orientation, frame = find_robot(original_frame, grid_overlay, hsv_ranges)
+    robot_position = grid_overlay.get_coordinate_from_pixel(robot_x_pixels, robot_y_pixels)
+
     # Draw grid and path overlays
     frame = grid_overlay.draw(frame)
+
     if latest_path:
         frame = draw_astar_path(frame, latest_path, grid_overlay)
 
@@ -254,13 +240,9 @@ while True:
             unvisited = [coord for coord in all_balls if coord not in visited_balls]
 
             if unvisited:
-                if not start_node:
-                    if grid_overlay.start_point:
-                        sx, sy = grid_overlay.start_point
-                        start_node = grid.get_node(sx, sy)
-                    else:
-                        start_node = grid.get_node(0, 0)
-                        print("Default start node used.")
+                if not start_node and robot_position:
+                    sx, sy = robot_position
+                    start_node = grid.get_node(sx, sy)
 
                 closest = AStar.get_closest_nodes(start_node, unvisited, grid, n=1)
                 tsp_path.extend(AStar.tsp_brute_force(start_node, closest, grid))

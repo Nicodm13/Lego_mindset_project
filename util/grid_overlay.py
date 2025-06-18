@@ -9,7 +9,6 @@ class GridOverlay:
         self.handle_size = 10
         self.corners = [(100, 100), (300, 100), (300, 300), (100, 300)]
         self.obstacles = []
-        self.start_point = None 
         self.dragging_point = -1
         self.matrix = None
         self.on_mark_obstacle = on_mark_obstacle
@@ -30,19 +29,6 @@ class GridOverlay:
 
             warped = cv2.perspectiveTransform(cell.reshape(-1, 1, 2), self.matrix).reshape(-1, 2).astype(int)
             cv2.fillPoly(frame, [warped], (0, 0, 255))
-
-        # Draw green start point (if not on an obstacle)
-        if self.start_point and self.start_point not in self.obstacles:
-            gx, gy = self.start_point
-            cell = np.float32([
-                [gx / self.grid_cols, gy / self.grid_rows],
-                [(gx + 1) / self.grid_cols, gy / self.grid_rows],
-                [(gx + 1) / self.grid_cols, (gy + 1) / self.grid_rows],
-                [gx / self.grid_cols, (gy + 1) / self.grid_rows]
-            ]) * 100
-
-            warped = cv2.perspectiveTransform(cell.reshape(-1, 1, 2), self.matrix).reshape(-1, 2).astype(int)
-            cv2.fillPoly(frame, [warped], (0, 255, 0))
 
         # Draw X coordinate labels (top)
         for gx in range(self.grid_cols):
@@ -132,12 +118,6 @@ class GridOverlay:
             index = self.get_point_index(mx, my)
             if index != -1:
                 self.dragging_point = index
-            else:
-                # Set start point if not clicking a corner handle
-                gx, gy = self.get_coordinate_from_pixel(mx, my)
-                if (gx, gy) != (-1, -1) and (gx, gy) not in self.obstacles:
-                    self.start_point = (gx, gy)
-
         elif event == cv2.EVENT_RBUTTONDOWN:
             if self.get_point_index(mx, my) == -1:
                 gx, gy = self.get_coordinate_from_pixel(mx, my)
