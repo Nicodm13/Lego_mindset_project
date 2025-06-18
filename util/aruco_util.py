@@ -20,8 +20,8 @@ def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
     idx = np.where(ids == marker_id)[0][0]
     marker_corners = corners[idx][0]
 
-    # Draw marker for visualization
-    cv2.aruco.drawDetectedMarkers(frame, [marker_corners])
+    # Use all corners directly for drawing
+    cv2.aruco.drawDetectedMarkers(frame, corners)
 
     # Get center of marker in pixels
     center = np.mean(marker_corners, axis=0)
