@@ -23,7 +23,7 @@ client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
 
-
+'''
 # Run HSV calibration at startup
 print("Starting HSV calibration for robot detection...")
 try:
@@ -41,6 +41,7 @@ except Exception as e:
     )
     print("Using default HSV values for robot detection")
 
+'''
 
 start_node = None
 visited_balls = set()
@@ -86,6 +87,7 @@ ret, frame = cap.read()
 if not ret:
     print("Webcam couldn't be opened.")
     exit()
+    
 # --- OpenCV Window Setup ---
 WINDOW_NAME = "Webcam Feed"
 cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
@@ -145,7 +147,7 @@ def listen_for_robot():
                         x_str, y_str = parts[1].split(",")
                         x, y = int(x_str), int(y_str)
 
-
+                        '''
                         # Detect robot using calibrated HSV values
                         robot_x_pixels, robot_y_pixels, robot_orientation, robot_frame = find_robot(original_frame,
                                                                                                     grid_overlay,
@@ -154,7 +156,10 @@ def listen_for_robot():
                         robot_x, robot_y = grid_overlay.get_coordinate_from_pixel(robot_x_pixels, robot_y_pixels)
 
                         start_node = grid.get_node(robot_x, robot_y)
-                        #start_node = grid.get_node(x, y)
+                        print(f"Updated robot position to: ({robot_x}, {robot_y})")
+                        '''
+
+                        start_node = grid.get_node(x, y)
                         print(f"Updated robot position to: ({x}, {y})")
                     except Exception as e:
                         print(f"Failed to parse DONE position: {e}")

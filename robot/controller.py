@@ -77,7 +77,15 @@ class Controller:
         if not len(path) >= 2:
             pass
         elif is_dropoff:
-            self.drop_off_ball(self.current_node, path[-3])
+            try:
+                index = path.index(self.current_node)
+                if index > 0:
+                    previous_node = path[index - 1]
+                else:
+                    previous_node = self.current_node 
+                self.drop_off_ball(self.current_node, previous_node)
+            except ValueError:
+                self.ev3.screen.print("Current node not in path")
         else:
             self.fetch_ball(path[-1])
 
@@ -235,7 +243,7 @@ class Controller:
                 return
 
             # Spin backward to release ball
-            self.spinner_motor.run_angle(SPINNER_SPEED, 90, then=Stop.BRAKE, wait=True)
+            self.spinner_motor.run_angle(SPINNER_SPEED, -90, then=Stop.BRAKE, wait=True)
 
             # Wait to let ball roll out
             wait(2000)  # 2 second
