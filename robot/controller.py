@@ -235,7 +235,7 @@ class Controller:
                 return
 
             # Spin backward to release ball
-            self.spinner_motor.run_angle(-SPINNER_SPEED, 180, then=Stop.BRAKE, wait=True)
+            self.spinner_motor.run_angle(SPINNER_SPEED, 90, then=Stop.BRAKE, wait=True)
 
             # Wait to let ball roll out
             wait(2000)  # 2 second
