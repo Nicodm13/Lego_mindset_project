@@ -36,11 +36,6 @@ ball_data = {
     'orange_balls': {'pixels': [], 'grid': []}
 }
 
-# Robot state tracking
-robot_position = None
-robot_orientation = None
-orientation_corrected = False
-
 # --- Grid & Webcam Setup ---
 grid = Grid(GRID_WIDTH, GRID_HEIGHT, GRID_DENSITY)
 
