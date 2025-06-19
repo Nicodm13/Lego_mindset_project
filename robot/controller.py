@@ -93,7 +93,7 @@ class Controller:
         if self.conn:
             try:
                 print("Path complete, sending DONE")
-                message = "DONE {},{}\n".format(self.current_node.x, self.current_node.y)
+                message = "DONE\n"
                 self.conn.send(message.encode())
             except Exception as e:
                 print("Failed to send DONE:", e)
@@ -354,24 +354,29 @@ class Controller:
                                     self.ev3.screen.print("Invalid OBST")
 
                     elif command.startswith("POSE"):
-                        try:
-                            parts = command.split()
-                            if len(parts) == 3:
-                                coords = parts[1]
-                                angle = float(parts[2])
-                                gx, gy = map(int, coords.strip("{}").split(","))
+                        parts = command.split()
+                        if len(parts) == 3:
+                            coord_str = parts[1].strip("{}")
+                            if "," in coord_str:
+                                try:
+                                    x_str, y_str = coord_str.split(",")
+                                    x, y = int(x_str), int(y_str)
+                                    angle = float(parts[2])
+                                    node = self.grid.get_node(x, y)
+                                    if node:
+                                        self.current_node = node
+                                        self.gyro_sensor.reset_angle(angle)
+                                        print("POSE updated: Position=({x},{y}), Angle={angle}".format(x=x, y=y, angle=angle))
+                                        self.ev3.screen.print("POSE OK")
+                                    else:
+                                        self.ev3.screen.print("POSE node invalid")
+                                except Exception as e:
+                                    print("POSE parse error:", e)
+                                    self.ev3.screen.print("POSE parse error")
+                        else:
+                            self.ev3.screen.print("Invalid POSE format")
 
-                                self.current_node = self.grid.get_node(gx, gy)
-                                self.current_orientation = angle
-                                self.gyro_sensor.reset_angle(angle)
 
-                                #print(f"Updated pose: Node=({gx},{gy}) Angle={angle}°")
-                                # self.ev3.screen.print(f"POSE: ({gx},{gy}) {angle:.1f}°")
-                            else:
-                                print("Invalid POSE format")
-                        except Exception as e:
-                            print("Failed to parse POSE:", e)
-                            
                     elif command.startswith("MOVE") or command.startswith("DROPOFF"):
                         is_dropoff = command.startswith("DROPOFF")
                         parts = command.split()

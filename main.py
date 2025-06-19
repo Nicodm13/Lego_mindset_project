@@ -19,7 +19,7 @@ from util.aruco_util import get_robot_position_and_angle
 import time
 
 # --- Global Variables ---
-robot_ip = "192.168.2.19"
+robot_ip = "192.168.96.19"
 client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
@@ -137,26 +137,22 @@ def listen_for_robot():
                 print("Connection closed by robot.")
                 connected.clear()
                 break
-            message = data.decode().strip()
-            if message.startswith("DONE"):
-                parts = message.split()
-                if len(parts) == 2:
-                    try:
-                        if robot_position:
-                            x, y = robot_position
-                            start_node = grid.get_node(x, y)
-                            print(f"Updated robot position to: ({x}, {y})")
 
-                    except Exception as e:
-                        print(f"Failed to parse DONE position: {e}")
-                else:
-                    print("Received Command: DONE (no position)")
+            message = data.decode().strip()
+
+            if message == "DONE":
+                print("Robot completed its task.")
+
+                if robot_position:
+                    x, y = robot_position
+                    start_node = grid.get_node(x, y)
+                    print(f"Updated robot position to: ({x}, {y})")
 
                 awaiting_response = False
+
     except (ConnectionResetError, ConnectionAbortedError, OSError) as e:
         print(f"Listener disconnected: {e}")
         connected.clear()
-
 
 # --- Main Loop ---
 while True:
@@ -174,16 +170,6 @@ while True:
     # Detect robot
     robot_position, robot_orientation, frame = get_robot_position_and_angle(original_frame, grid_overlay)
     
-    # if robot_position and robot_orientation and connected.is_set():
-      #  gx, gy = robot_position
-       # orientation = round(robot_orientation, 2)
-       # pose_msg = f"POSE {{{gx},{gy}}} {orientation}\n"
-       # try:
-        #    client_socket.sendall(pose_msg.encode())
-         #   print(f"Sent COMMAND: {pose_msg.strip()}")
-        # except Exception as e:
-         #   print(f"Error sending POSE: {e}")
-
     # Draw grid and path overlays
     frame = grid_overlay.draw(frame)
 
@@ -217,6 +203,13 @@ while True:
             if path:
                 latest_path = path
                 try:
+                    if robot_position and robot_orientation:
+                        gx, gy = robot_position
+                        orientation = round(robot_orientation, 2)
+                        pose_msg = f"POSE {{{gx},{gy}}} {orientation}\n"
+                        client_socket.sendall(pose_msg.encode())
+                        print(f"Sent COMMAND: {pose_msg.strip()}")
+
                     path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
                     move_command = f"DROPOFF {path_str}\n"
                     client_socket.sendall(move_command.encode())
@@ -234,6 +227,13 @@ while True:
             if path:
                 latest_path = path
                 try:
+                    if robot_position and robot_orientation:
+                        gx, gy = robot_position
+                        orientation = round(robot_orientation, 2)
+                        pose_msg = f"POSE {{{gx},{gy}}} {orientation}\n"
+                        client_socket.sendall(pose_msg.encode())
+                        print(f"Sent COMMAND: {pose_msg.strip()}")
+
                     path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
                     move_command = f"MOVE {path_str}\n"
                     client_socket.sendall(move_command.encode())
@@ -245,6 +245,7 @@ while True:
                     print(f"Error sending move: {e}")
             else:
                 print("No valid path to next ball, skipping.")
+
 
         elif not tsp_path:
             all_balls = ball_data['white_balls']['grid'] + ball_data['orange_balls']['grid']
