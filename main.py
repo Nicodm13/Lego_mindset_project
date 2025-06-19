@@ -7,9 +7,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
 import cv2
 import socket
 import threading
-import numpy as np
 import time
-from robot.config import ROBOT_WIDTH, ROBOT_LENGTH, ROBOT_PORT
+from robot.config import *
 from robot.grid import Grid
 from pathfinding.astar import AStar
 from util.grid_overlay import GridOverlay
@@ -43,7 +42,7 @@ robot_orientation = None
 orientation_corrected = False
 
 # --- Grid & Webcam Setup ---
-grid = Grid(1800, 1200, 17)
+grid = Grid(GRID_WIDTH, GRID_HEIGHT, GRID_DENSITY)
 
 def handle_obstacle_marked(gx, gy):
     node = grid.get_node(gx, gy)
