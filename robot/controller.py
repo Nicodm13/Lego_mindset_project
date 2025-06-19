@@ -164,7 +164,6 @@ class Controller:
             self.drive_base.turn(delta)
 
             # Gyro correction loop
-            correction_tolerance = 0.5  # degrees
             max_attempts = 3
             attempts = 0
 
@@ -172,7 +171,7 @@ class Controller:
                 current_angle = self.normalize_angle(self.gyro_sensor.angle())
                 delta = self.angle_diff(target_angle, current_angle)
 
-                if abs(delta) < correction_tolerance:
+                if abs(delta) <= ROTATE_CORRECTION_THRESHOLD:
                     break
 
                 print("Correcting residual drift: {}°".format(delta))
