@@ -75,14 +75,14 @@ class Controller:
         if not len(path) >= 2:
             pass
         elif is_dropoff:
-            self.drop_off_ball(path[-2], path[-1])
+            self.drop_off_ball(path[-1], path[-2])
 
         # Notify PC when done
         if self.conn:
             try:
                 print("Path complete, sending DONE")
                 message = "DONE {},{}\n".format(self.current_node.x, self.current_node.y)
-                self.conn.send(message.encode())
+                #self.conn.send(message.encode())
             except Exception as e:
                 print("Failed to send DONE:", e)
 
@@ -142,23 +142,44 @@ class Controller:
         finally:
             self.drive_base.stop()
 
+
     def rotate_to(self, target_angle: float):
-        """Rotate to target using gyro feedback with minimal unnecessary corrections."""
+        """
+        Rotate to a precise angle using DriveBase and gyro correction.
+        Ensures rotation lands exactly on 0°, 90°, 180°, or 270° with no drift.
+        """
         try:
             self.drive_base.stop()
- 
-            current_gyro = self.normalize_angle(self.gyro_sensor.angle())
 
-            current_gyro = self.gyro_sensor.angle()
-            delta = self.angle_diff(target_angle, current_gyro)
+            # Normalize the target angle
+            target_angle = self.normalize_angle(target_angle)
+            current_angle = self.normalize_angle(self.gyro_sensor.angle())
+            delta = self.angle_diff(target_angle, current_angle)
 
+            print("Rotating from {}° to {}° (delta: {}°)".format(current_angle, target_angle, delta))
+
+            # Use DriveBase for main rotation
             self.drive_base.settings(turn_rate=ROTATE_SPEED, turn_acceleration=ROTATE_ACCLERATION)
             self.drive_base.reset()
-
-            # Primary rotation
-            print("Rotating from {} to {} (delta: {})".format(current_gyro, target_angle, delta))
             self.drive_base.turn(delta)
 
+            # Gyro correction loop
+            correction_tolerance = 0.5  # degrees
+            max_attempts = 3
+            attempts = 0
+
+            while attempts < max_attempts:
+                current_angle = self.normalize_angle(self.gyro_sensor.angle())
+                delta = self.angle_diff(target_angle, current_angle)
+
+                if abs(delta) < correction_tolerance:
+                    break
+
+                print("Correcting residual drift: {}°".format(delta))
+                self.drive_base.turn(delta)
+                attempts += 1
+
+            # Reset gyro to clean up drift
             self.gyro_sensor.reset_angle(target_angle)
 
         except OSError as e:

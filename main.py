@@ -145,7 +145,6 @@ def listen_for_robot():
         connected.clear()
 
 # --- Main Loop ---
-
 while True:
     ret, frame = cap.read()
     if not ret:
@@ -183,55 +182,56 @@ while True:
 
     # --- Automated Ball Path Execution ---
     if connected.is_set() and not awaiting_response:
-        all_balls = ball_data['white_balls']['grid'] + ball_data['orange_balls']['grid']
-        unvisited = [coord for coord in all_balls if coord not in visited_balls]
+        if is_dropoff_time:
+            dropoff_node = grid.get_dropoff(dropoffset=1, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
+            path = AStar.find_path(start_node, dropoff_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
+            if path:
+                latest_path = path
+                try:
+                    path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                    move_command = f"DROPOFF {path_str}\n"
+                    client_socket.sendall(move_command.encode())
+                    print(f"Sent COMMAND: {move_command.strip()}")
+                    awaiting_response = True
+                    is_dropoff_time = False
+                except Exception as e:
+                    print(f"Error sending dropoff: {e}")
+            else:
+                print("No valid path to dropoff, skipping.")
 
-        if not tsp_path and unvisited:
-            if not start_node:
-                if grid_overlay.start_point:
-                    sx, sy = grid_overlay.start_point
-                    start_node = grid.get_node(sx, sy)
-                else:
-                    start_node = grid.get_node(0, 0)
-                    print("Default start node used.")
+        elif tsp_path:
+            next_node = tsp_path.pop(0)
+            path = AStar.find_path(start_node, next_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
+            if path:
+                latest_path = path
+                try:
+                    path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                    move_command = f"MOVE {path_str}\n"
+                    client_socket.sendall(move_command.encode())
+                    print(f"Sent COMMAND: {move_command.strip()}")
+                    visited_balls.add((next_node.x, next_node.y))
+                    awaiting_response = True
+                    is_dropoff_time = True
+                except Exception as e:
+                    print(f"Error sending move: {e}")
+            else:
+                print("No valid path to next ball, skipping.")
 
-            closest = AStar.get_closest_nodes(start_node, unvisited, grid, n=1)
-            tsp_path.extend(AStar.tsp_brute_force(start_node, closest, grid))
+        elif not tsp_path:
+            all_balls = ball_data['white_balls']['grid'] + ball_data['orange_balls']['grid']
+            unvisited = [coord for coord in all_balls if coord not in visited_balls]
 
-            if is_dropoff_time:
-                dropoff_node = grid.get_dropoff(dropoffset=1, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
-                path = AStar.find_path(start_node, dropoff_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
-                if path:
-                    latest_path = path
-                    try:
-                        path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
-                        move_command = f"DROPOFF {path_str}\n"
-                        client_socket.sendall(move_command.encode())
-                        print(f"Sent COMMAND: {move_command.strip()}")
-                        awaiting_response = True
-                        is_dropoff_time = False 
-                    except Exception as e:
-                        print(f"Error sending dropoff: {e}")
-                else:
-                    print("No valid path to dropoff, skipping.")
+            if unvisited:
+                if not start_node:
+                    if grid_overlay.start_point:
+                        sx, sy = grid_overlay.start_point
+                        start_node = grid.get_node(sx, sy)
+                    else:
+                        start_node = grid.get_node(0, 0)
+                        print("Default start node used.")
 
-            elif tsp_path:
-                next_node = tsp_path.pop(0)
-                path = AStar.find_path(start_node, next_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
-                if path:
-                    latest_path = path
-                    try:
-                        path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
-                        move_command = f"MOVE {path_str}\n"
-                        client_socket.sendall(move_command.encode())
-                        print(f"Sent COMMAND: {move_command.strip()}")
-                        visited_balls.add((next_node.x, next_node.y))
-                        awaiting_response = True
-                        is_dropoff_time = True  # 
-                    except Exception as e:
-                        print(f"Error sending move: {e}")
-                else:
-                    print("No valid path to next ball, skipping.")
+                closest = AStar.get_closest_nodes(start_node, unvisited, grid, n=1)
+                tsp_path.extend(AStar.tsp_brute_force(start_node, closest, grid))
 
 
     # --- Key Handling ---
