@@ -61,8 +61,10 @@ class Controller:
             path (List[Node]): List of nodes to go to, in order, starting with the node the robot is currently on.
         """
         
+        self.start_spinner(SPINNER_SPEED)
+
         i = 1
-        while i < len(path) - 1: # Stop at the previous node to the last one if not going to dropoff
+        while i < len(path): # Stop at the previous node to the last one if not going to dropoff
             if(self.reset_requested):
                 return
             print("Step {}: From ({},{}) to ({},{})".format(i, path[i-1].x, path[i-1].y, path[i].x, path[i].y))
@@ -73,9 +75,7 @@ class Controller:
         if not len(path) >= 2:
             pass
         elif is_dropoff:
-            print("I WOULD DROP OFF THE BALL BUT I HAVEN'T BEEN PROGRAMMED HOW TO DO OS YET")
-        else:
-            self.fetch_ball(path[-1])
+            self.drop_off_ball(path[-2], path[-1])
 
         # Notify PC when done
         if self.conn:
@@ -94,17 +94,16 @@ class Controller:
         angle = self.offset_to_angle(xdiff, ydiff)
         current_gyro = self.gyro_sensor.angle()
 
-        # Check if the target is already in the right direction
-        self.rotate_to(angle)
+        angle_difference = abs(self.angle_diff(angle, current_gyro))
 
-        if self.reset_requested:
-            self.left_motor.stop(Stop.BRAKE)
-            self.right_motor.stop(Stop.BRAKE)
-            return
+        # Only rotate if angle difference is significant
+        if angle_difference >= ROTATE_CORRECTION_THRESHOLD:
+            self.rotate_to(angle)
 
         distance = self.grid.get_distance(start, target)
         self.drive(distance)
         self.current_node = target
+
 
     def offset_to_angle(self, xdiff: int, ydiff: int) -> int:
         """Convert a rectangular offset to the corresponding angle, e.g., (1, -1) -> 45.
@@ -179,33 +178,6 @@ class Controller:
         """Normalize any angle to the [0, 360) range."""
         return angle % 360
 
-    def fetch_ball(self, target_node: Node):
-        """Rotates toward and drives to the ball from current node, and spins to pick it up."""
-        print("Fetching ball...")
-
-        try:
-            self.start_spinner(SPINNER_SPEED)
-            self.drive_base.stop()
-            self.drive_base.settings(PICKUP_SPEED, PICKUP_ACCELERATION)
-
-            # Rotate toward ball
-            xdiff = target_node.x - self.current_node.x
-            ydiff = target_node.y - self.current_node.y
-
-            angle = self.offset_to_angle(xdiff, ydiff)
-  
-            self.rotate_to(angle)
-
-            # Drive to ball
-            distance = self.grid.get_distance(self.current_node, target_node)
-            print("Driving to ball at ({}, {}) with distance {}".format(target_node.x, target_node.y, distance))
-            self.drive_base.straight(distance)
-
-            self.current_node = target_node
-        finally:
-            self.reset_spinner()
-            print("Ball fetched and spinner reset.")
-
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
 
@@ -214,16 +186,44 @@ class Controller:
         """
         self.spinner_motor.run(-speed)
 
-    def reset_spinner(self):
-        """Reset the spinner to the default 'up' position."""
-        self.spinner_motor.stop(Stop.BRAKE)
-        self.spinner_motor.run_target(-SPINNER_SPEED, SPINNER_RESET_ANGLE, Stop.BRAKE, wait=True)
-        print("Spinner reset to default position.")
-
     def stop_spinner(self):
         """Stop rotating the spinner.
         """
         self.spinner_motor.stop(Stop.BRAKE)
+
+    def drop_off_ball(self, start: Node, target: Node):
+        """
+        Drops off the ball by reversing the spinner briefly and then resetting.
+        Then drives 1 node backward before sending DONE.
+        """
+        print("Dropping off ball...")
+
+        try:
+            if self.reset_requested:
+                self.left_motor.stop(Stop.BRAKE)
+                self.right_motor.stop(Stop.BRAKE)
+                return
+
+            # Spin backward to release ball
+            self.start_spinner(-SPINNER_SPEED)
+
+            # Wait to let ball roll out
+            wait(2000)  # 2 second
+
+            # Reset spinner to pickup position
+            self.start_spinner(SPINNER_SPEED)
+            print("Ball dropped off and spinner reset.")
+
+            # Get the distance to the previous node
+            distance = self.grid.get_distance(start, target)
+
+            # Reverse the distance
+            self.drive(-distance)
+            self.current_node = target
+
+        except OSError as e:
+            print("Drop-off error:", e)
+            self.spinner_motor.stop(Stop.BRAKE)
 
     def start_server(self):
         """Starts and runs the server on the robot to receive commands."""

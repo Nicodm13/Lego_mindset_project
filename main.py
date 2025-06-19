@@ -8,36 +8,19 @@ import cv2
 import socket
 import threading
 import numpy as np
+import time
 from robot.config import ROBOT_WIDTH, ROBOT_LENGTH, ROBOT_PORT
 from robot.grid import Grid
 from pathfinding.astar import AStar
 from util.grid_overlay import GridOverlay
 from util.find_balls import find_ping_pong_balls, draw_ball_detections
 from util.path_visualizer import draw_astar_path
-from util.find_robot import debug_robot_detection, find_robot
 
 # --- Global Variables ---
-robot_ip = "192.168.113.19"
+robot_ip = "192.168.96.19"
 client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
-
-# Run HSV calibration at startup
-print("Starting HSV calibration for robot detection...")
-try:
-    # Get HSV ranges from the debug interface
-    hsv_ranges = debug_robot_detection()
-    print("HSV calibration complete. Values will be used for robot detection.")
-except Exception as e:
-    print(f"HSV calibration failed: {e}")
-    # Use default values if calibration fails
-    hsv_ranges = (
-        np.array([85, 20, 100]),  # lower_blue
-        np.array([110, 150, 220]),  # upper_blue
-        np.array([25, 40, 100]),   # lower_green
-        np.array([40, 255, 255])   # upper_green
-    )
-    print("Using default HSV values for robot detection")
 
 start_node = None
 visited_balls = set()
@@ -69,12 +52,27 @@ def handle_obstacle_marked(gx, gy):
 
 grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
 
-os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
-cap = cv2.VideoCapture(1)
+
+print("Opening webcam...")
+cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+# Wait until it's ready
+while not cap.isOpened():
+    print("Waiting for camera...")
+    time.sleep(0.5)
+
+# Warm-up
+for _ in range(5):
+    cap.read()
+    cv2.waitKey(30)
+
 ret, frame = cap.read()
 if not ret:
     print("Webcam couldn't be opened.")
     exit()
+
 
 # --- OpenCV Window Setup ---
 WINDOW_NAME = "Webcam Feed"
@@ -132,16 +130,10 @@ def listen_for_robot():
                 parts = message.split()
                 if len(parts) == 2:
                     try:
-                        # x_str, y_str = parts[1].split(",")
-                        # x, y = int(x_str), int(y_str)
-                        # Detect robot using calibrated HSV values
-                        robot_x_pixels, robot_y_pixels, robot_orientation, robot_frame = find_robot(original_frame,
-                                                                                                    grid_overlay,
-                                                                                                    hsv_ranges)
-                        print(f"Robot position: ({robot_x_pixels}, {robot_y_pixels})")
-                        robot_x, robot_y = grid_overlay.get_coordinate_from_pixel(robot_x_pixels, robot_y_pixels)
-                        start_node = grid.get_node(robot_x, robot_y)
-                        print(f"Updated robot position to: ({robot_x}, {robot_y})")
+                        x_str, y_str = parts[1].split(",")
+                        x, y = int(x_str), int(y_str)
+                        start_node = grid.get_node(x, y)
+                        print(f"Updated robot position to: ({x}, {y})")
                     except Exception as e:
                         print(f"Failed to parse DONE position: {e}")
                 else:
@@ -153,7 +145,6 @@ def listen_for_robot():
         connected.clear()
 
 # --- Main Loop ---
-printed_searching = False
 
 while True:
     ret, frame = cap.read()
@@ -162,11 +153,8 @@ while True:
 
     original_frame = frame.copy()
 
-    # Only detect balls and robot position after connected
+
     if connected.is_set():
-        if not printed_searching:
-            print("Searching for balls and robot position...")
-            printed_searching = True
             ball_data = find_ping_pong_balls(original_frame, grid_overlay)
             frame = draw_ball_detections(frame, ball_data)
 
@@ -175,12 +163,6 @@ while True:
             orange_txt = f"Orange: {len(ball_data['orange_balls']['grid'])} balls"
             cv2.putText(frame, white_txt, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             cv2.putText(frame, orange_txt, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
-
-        # Print coordinates in the grid to console
-        if ball_data['white_balls']['grid']:
-            print("White ball grid coordinates:", ball_data['white_balls']['grid'])
-        if ball_data['orange_balls']['grid']:
-            print("Orange ball grid coordinates:", ball_data['orange_balls']['grid'])
 
     # Draw grid overlay after ball detection
     frame = grid_overlay.draw(frame)
