@@ -18,7 +18,7 @@ from util.find_balls import find_ping_pong_balls, draw_ball_detections
 from util.path_visualizer import draw_astar_path
 
 # --- Global Variables ---
-robot_ip = "192.168.96.19"
+robot_ip = "192.168.113.19"
 client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
@@ -132,7 +132,10 @@ def listen_for_robot():
                         x_str, y_str = parts[1].split(",")
                         x, y = int(x_str), int(y_str)
                         # start_node = grid.get_node(x, y)
-                        start_node = grid.get_node(*robot_position)
+                        robot_position, robot_orientation, frame = get_robot_position_and_angle(original_frame, grid_overlay)
+
+                        if robot_position is not None:
+                            start_node = grid.get_node(*robot_position)
                         print(f"Updated robot position to: ({x}, {y})")
                     except Exception as e:
                         print(f"Failed to parse DONE position: {e}")
@@ -157,6 +160,9 @@ while True:
     
     robot_position, robot_orientation, frame = get_robot_position_and_angle(original_frame, grid_overlay)
     
+    if robot_position is not None:
+        start_node = grid.get_node(*robot_position)
+
     if connected.is_set():
             ball_data = find_ping_pong_balls(original_frame, grid_overlay)
             frame = draw_ball_detections(frame, ball_data)
