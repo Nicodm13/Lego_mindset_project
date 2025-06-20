@@ -14,6 +14,7 @@ from pathfinding.astar import AStar
 from util.grid_overlay import GridOverlay
 from util.find_balls import find_ping_pong_balls, draw_ball_detections
 from util.path_visualizer import draw_astar_path
+from collections import deque, Counter
 
 # --- Global Variables ---
 robot_ip = "192.168.96.19"
@@ -28,6 +29,8 @@ tsp_path = []
 latest_path = []
 awaiting_response = False
 is_dropoff_time = False
+latest_ball_counts = deque()
+true_ball_count = None
 
 # Ball detection state
 detect_balls = False
@@ -151,14 +154,24 @@ while True:
             ball_data = find_ping_pong_balls(original_frame, grid_overlay)
             frame = draw_ball_detections(frame, ball_data)
             
-            # Check for whether a ball was picked up since last time
+            # Detect ball pickup
             total_balls = len(ball_data['white_balls']['grid']) + len(ball_data['orange_balls']['grid'])
-            if not ball_count:
-                ball_count = total_balls
-            elif ball_count > total_balls:
-                print("BALL DETECTED AS PICKED UP")
-                is_dropoff_time = True
-                ball_count = total_balls
+            latest_ball_counts.append(total_balls)
+            
+            if len(latest_ball_counts) <= 30:
+                print("ball_counts queue not yet full") # debug
+            else:
+                latest_ball_counts.popleft()
+                
+                most_common, frequency = Counter(latest_ball_counts).most_common(1)[0]
+                
+                if true_ball_count is None:
+                    true_ball_count = most_common
+                elif most_common != true_ball_count and frequency > 20:
+                    if most_common < true_ball_count:
+                        is_dropoff_time = True
+                    true_ball_count = most_common
+                    
 
             # Display ball coordinates
             white_txt = f"White: {len(ball_data['white_balls']['grid'])} balls"
