@@ -40,9 +40,6 @@ class Controller:
         # Active socket connection (set in start_server)
         self.conn = None
      
-        # Reset spinner to default position on startup
-        self.initialize_spinner()
-
         # Display message
         self.ev3.screen.print("Controller Ready")
 
@@ -95,7 +92,7 @@ class Controller:
             self.drop_off_ball(path[-1], path[-2])
 
         # Stop spinner after arriving at the last node
-        self.stop_spinner()
+        self.reset_spinner()
 
         # Notify PC when done
         if self.conn:
@@ -233,6 +230,19 @@ class Controller:
         """Stop rotating the spinner.
         """
         self.spinner_motor.stop(Stop.BRAKE)
+    
+    def reset_spinner(self):
+        """Reset the spinner to the default position using the shortest path rotation."""
+        current_angle = self.spinner_motor.angle() % 360
+        delta = (0 - current_angle + 540) % 360 - 180  # Minimal angle difference in [-180, 180]
+
+        print("Spinner reset: Current={}, Delta={}".format(current_angle, delta))
+
+        # Run target using the shortest path
+        target_angle = self.spinner_motor.angle() + delta
+        self.spinner_motor.run_target(SPINNER_SPEED, target_angle, Stop.BRAKE, wait=True)
+        print("Spinner reset to default position.")
+
 
     def drop_off_ball(self, start: Node, target: Node):
         """
