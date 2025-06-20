@@ -87,7 +87,7 @@ class Controller:
 
         # Drop off the ball if requested
         if is_dropoff and len(path) >= 2:
-            self.drop_off_ball(path[-1], path[-2])
+            self.drop_off_ball()
 
         # Always reset spinner at the end
         self.reset_spinner()
@@ -250,7 +250,7 @@ class Controller:
 
         print("Spinner reset complete.")
 
-    def drop_off_ball(self, start: Node, target: Node):
+    def drop_off_ball(self):
         """
         Drops off the ball by reversing the spinner briefly and then resetting.
         Then drives 1 node backward before sending DONE.
@@ -272,13 +272,6 @@ class Controller:
             # Reset spinner to pickup position
             self.reset_spinner()
             print("Ball dropped off and spinner reset.")
-
-            # Get the distance to the previous node
-            distance = self.grid.get_distance(start, target)
-
-            # Reverse the distance
-            self.drive(-distance)
-            self.current_node = target
 
         except OSError as e:
             print("Drop-off error:", e)
