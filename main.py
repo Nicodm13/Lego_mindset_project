@@ -1,6 +1,8 @@
 import os
 import sys
 
+from util.aruco_util import get_robot_position_and_angle
+
 # Add robot folder to sys.path before imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
 
@@ -28,6 +30,9 @@ tsp_path = []
 latest_path = []
 awaiting_response = False
 is_dropoff_time = False
+robot_position = None
+robot_orientation = None
+
 
 # Ball detection state
 detect_balls = False
@@ -126,7 +131,8 @@ def listen_for_robot():
                     try:
                         x_str, y_str = parts[1].split(",")
                         x, y = int(x_str), int(y_str)
-                        start_node = grid.get_node(x, y)
+                        # start_node = grid.get_node(x, y)
+                        start_node = grid.get_node(*robot_position)
                         print(f"Updated robot position to: ({x}, {y})")
                     except Exception as e:
                         print(f"Failed to parse DONE position: {e}")
@@ -144,9 +150,13 @@ while True:
     if not ret:
         break
 
-    original_frame = frame.copy()
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)                    # Convert to grayscale
+    original_frame = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)           # For detection and overlays
+    frame = original_frame.copy()                                     # Displayed frame will be grayscale + overlays
 
-
+    
+    robot_position, robot_orientation, frame = get_robot_position_and_angle(original_frame, grid_overlay)
+    
     if connected.is_set():
             ball_data = find_ping_pong_balls(original_frame, grid_overlay)
             frame = draw_ball_detections(frame, ball_data)
