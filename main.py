@@ -160,7 +160,9 @@ while True:
     if not ret:
         break
 
-    original_frame = frame.copy()
+    # original_frame = frame.copy()
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    original_frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR) 
 
     # Detect balls and robot
     if connected.is_set():
@@ -188,6 +190,7 @@ while True:
     cv2.putText(frame, white_txt, (10, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
     text_y += line_height
     cv2.putText(frame, orange_txt, (10, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
+
 
     cv2.imshow(WINDOW_NAME, frame)
 

@@ -3,14 +3,13 @@
 from pybricks.hubs import EV3Brick
 from pybricks.ev3devices import Motor, GyroSensor, UltrasonicSensor
 from pybricks.robotics import DriveBase
-from pybricks.parameters import Port, Stop
+from pybricks.parameters import Port, Stop, Direction
 from pybricks.tools import wait
 
 from config import *
 
 from node import Node
 from grid import Grid
-from direction import Direction
 
 import socket
 
@@ -32,7 +31,7 @@ class Controller:
         self.right_motor = Motor(Port.B)
         self.drive_base = DriveBase(self.left_motor, self.right_motor, WHEEL_DIAMETER, AXLE_TRACK)
         self.spinner_motor = Motor(Port.C)
-
+        self.direction = Direction()
         # Initialize Sensors
         self.gyro_sensor = GyroSensor(Port.S1)
         self.gyro_sensor.reset_angle(0)
@@ -143,7 +142,7 @@ class Controller:
         """Drive forward a specific distance using DriveBase.straight() with safe control."""
         try:
             self.drive_base.stop()
-
+        
             self.drive_base.settings(speed, acceleration)
 
             print("Driving: Distance={}, Speed={}".format(distance, speed))
