@@ -32,12 +32,16 @@ class Controller:
         self.right_motor = Motor(Port.B)
         self.drive_base = DriveBase(self.left_motor, self.right_motor, WHEEL_DIAMETER, AXLE_TRACK)
         self.spinner_motor = Motor(Port.C)
+        self.spinner_motor.reset_angle(0)
 
         # Initialize Sensors
         self.gyro_sensor = GyroSensor(Port.S1)
 
         # Active socket connection (set in start_server)
         self.conn = None
+     
+        # Reset spinner to default position on startup
+        self.initialize_spinner()
 
         # Display message
         self.ev3.screen.print("Controller Ready")
@@ -54,6 +58,7 @@ class Controller:
         else:
             self.ev3.screen.print("Invalid or short path")
 
+    
     def follow_path(self, path, is_dropoff):
         """Follow a path of nodes by driving to each of them in order.
 
@@ -61,21 +66,36 @@ class Controller:
             path (List[Node]): List of nodes to go to, in order, starting with the node the robot is currently on.
         """
         
-        self.start_spinner(SPINNER_SPEED)
+        spinner_started = False
 
         i = 1
-        while i < len(path): # Stop at the previous node to the last one if not going to dropoff
+        while i < len(path):
             if(self.reset_requested):
                 return
-            print("Step {}: From ({},{}) to ({},{})".format(i, path[i-1].x, path[i-1].y, path[i].x, path[i].y))
+            
+            # Calculate nodes remaining (including current target)
+            nodes_remaining = len(path) - i
+            
+            # Start spinner when exactly 2 nodes are left to visit
+            if not spinner_started and nodes_remaining == 2:
+                print("Starting spinner")
+                self.start_spinner(SPINNER_SPEED)
+                spinner_started = True
+            
+            print("Step {}: From ({},{}) to ({},{}) - {} nodes remaining".format(
+                i, path[i-1].x, path[i-1].y, path[i].x, path[i].y, nodes_remaining))
+            
             self.move_to(path[i-1], path[i])
             i += 1
 
-        # Fetch or drop off ball
+        # Drop off ball
         if not len(path) >= 2:
             pass
         elif is_dropoff:
             self.drop_off_ball(path[-1], path[-2])
+
+        # Stop spinner after arriving at the last node
+        self.stop_spinner()
 
         # Notify PC when done
         if self.conn:
@@ -181,6 +201,8 @@ class Controller:
             # Reset gyro to clean up drift
             self.gyro_sensor.reset_angle(target_angle)
 
+            wait(500)
+
         except OSError as e:
             print("Rotation EPERM error:", e)
             self.left_motor.stop(Stop.BRAKE)
@@ -197,6 +219,7 @@ class Controller:
     def normalize_angle(self, angle):
         """Normalize any angle to the [0, 360) range."""
         return angle % 360
+
 
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
@@ -231,7 +254,7 @@ class Controller:
             wait(2000)  # 2 second
 
             # Reset spinner to pickup position
-            self.start_spinner(SPINNER_SPEED)
+            self.reset_spinner()
             print("Ball dropped off and spinner reset.")
 
             # Get the distance to the previous node

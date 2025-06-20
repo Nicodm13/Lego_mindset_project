@@ -15,6 +15,8 @@ DRIVE_ACCELERATION = 800 # Acceleration should be SPEED * 4
 ROTATE_SPEED = 50
 ROTATE_ACCLERATION = 200 # Acceleration should be SPEED * 4
 ROTATE_CORRECTION_THRESHOLD = 0.5
+
+# Pickup Settings
 SPINNER_SPEED = 500
 
 # Communication
