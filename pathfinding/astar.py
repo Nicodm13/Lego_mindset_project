@@ -79,7 +79,7 @@ class AStar:
                             step_dx = -edge_direction[0]
                             step_dy = -edge_direction[1]
 
-                            # Create the intermediate steps from approach node to target (exluding target node)
+                            # Create the intermediate steps from approach node to target (excluding target node)
                             intermediate_nodes = []
                             for i in range(1, approach_distance + 1):
                                 bx = approach_node.x + step_dx * i
@@ -91,9 +91,28 @@ class AStar:
 
                             return approach_path + intermediate_nodes
 
+                # Return direct path
+                full_path = AStar.reverse_path(current)
 
-                # Fallback: return direct path
-                return AStar.reverse_path(current)
+                # Ensure last two steps are straight
+                if len(full_path) >= 3:
+                    a, b, c = full_path[-3], full_path[-2], full_path[-1]
+                    dx1, dy1 = b.x - a.x, b.y - a.y
+                    dx2, dy2 = c.x - b.x, c.y - b.y
+
+                    if (dx1, dy1) != (dx2, dy2):
+                        # Recalculate path to a straight-approach node before target
+                        forced_dx, forced_dy = dx1, dy1
+                        new_bx = c.x - forced_dx
+                        new_by = c.y - forced_dy
+                        new_b = grid.get_node(new_bx, new_by)
+
+                        if new_b and grid.is_walkable(new_b, robot_width, robot_length):
+                            forced_path = AStar.find_path(start, new_b, grid, robot_width, robot_length)
+                            if forced_path:
+                                return forced_path + [c]
+
+                return full_path
 
             closed_set.add((current.x, current.y))
 
@@ -111,6 +130,7 @@ class AStar:
                     heapq.heappush(open_set, (neighbor.f_cost, neighbor))
 
         return []
+
 
     @staticmethod
     def dijkstra(start: Node, grid: Grid):

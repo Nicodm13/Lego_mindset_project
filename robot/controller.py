@@ -82,7 +82,7 @@ class Controller:
             try:
                 print("Path complete, sending DONE")
                 message = "DONE {},{}\n".format(self.current_node.x, self.current_node.y)
-                #self.conn.send(message.encode())
+                self.conn.send(message.encode())
             except Exception as e:
                 print("Failed to send DONE:", e)
 
