@@ -168,15 +168,6 @@ while True:
     if connected.is_set():
         ball_data = find_ping_pong_balls(original_frame, grid_overlay)
         frame = draw_ball_detections(frame, ball_data)
-    
-    # Check for whether a ball was picked up since last time
-    total_balls = len(ball_data['white_balls']['grid']) + len(ball_data['orange_balls']['grid'])
-    if not ball_count:
-        ball_count = total_balls
-    elif ball_count > total_balls:
-        print("BALL DETECTED AS PICKED UP")
-        is_dropoff_time = True
-        ball_count = total_balls
 
     # Detect robot
     robot_x_pixels, robot_y_pixels, robot_orientation, frame = find_robot(original_frame, grid_overlay, hsv_ranges)
