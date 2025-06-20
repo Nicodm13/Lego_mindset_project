@@ -57,41 +57,39 @@ class Controller:
 
     
     def follow_path(self, path, is_dropoff):
-        """Follow a path of nodes by driving to each of them in order.
-
-        Args:
-            path (List[Node]): List of nodes to go to, in order, starting with the node the robot is currently on.
         """
-        
+        Follow a path of nodes by driving to each of them in order.
+        If `is_dropoff` is True, stop at the second-last node and perform drop-off.
+        """
         spinner_started = False
 
+        # Determine the final index to stop at
+        stop_index = len(path) - 1 if not is_dropoff else len(path) - 2
+
         i = 1
-        while i < len(path):
-            if(self.reset_requested):
+        while i <= stop_index:
+            if self.reset_requested:
                 return
-            
-            # Calculate nodes remaining (including current target)
-            nodes_remaining = len(path) - i
-            
-            # Start spinner when exactly 2 nodes are left to visit
-            if not spinner_started and nodes_remaining == 2:
+
+            nodes_remaining = stop_index - i + 1
+
+            # Start spinner only if not dropping off and 2 nodes left
+            if not spinner_started and nodes_remaining == 2 and not is_dropoff:
                 print("Starting spinner")
                 self.start_spinner(SPINNER_SPEED)
                 spinner_started = True
-            
+
             print("Step {}: From ({},{}) to ({},{}) - {} nodes remaining".format(
-                i, path[i-1].x, path[i-1].y, path[i].x, path[i].y, nodes_remaining))
-            
-            self.move_to(path[i-1], path[i])
+                i, path[i - 1].x, path[i - 1].y, path[i].x, path[i].y, nodes_remaining))
+
+            self.move_to(path[i - 1], path[i])
             i += 1
 
-        # Drop off ball
-        if not len(path) >= 2:
-            pass
-        elif is_dropoff:
+        # Drop off the ball if requested
+        if is_dropoff and len(path) >= 2:
             self.drop_off_ball(path[-1], path[-2])
 
-        # Stop spinner after arriving at the last node
+        # Always reset spinner at the end
         self.reset_spinner()
 
         # Notify PC when done
@@ -102,6 +100,8 @@ class Controller:
                 self.conn.send(message.encode())
             except Exception as e:
                 print("Failed to send DONE:", e)
+
+
 
     def move_to(self, start: Node, target: Node):
         """Rotate and drive to a **neighboring** node only if needed."""
@@ -232,17 +232,23 @@ class Controller:
         self.spinner_motor.stop(Stop.BRAKE)
     
     def reset_spinner(self):
-        """Reset the spinner to the default position using the shortest path rotation."""
+        # Get the current spinner angle, modulo 360 to keep within one rotation
         current_angle = self.spinner_motor.angle() % 360
-        delta = (0 - current_angle + 540) % 360 - 180  # Minimal angle difference in [-180, 180]
 
-        print("Spinner reset: Current={}, Delta={}".format(current_angle, delta))
+        # Calculate shortest path back to SPINNER_RESET_ANGLE (which is 0)
+        target = 0 % 360
+        diff = (target - current_angle + 180) % 360 - 180  # Result is in [-180, 180]
 
-        # Run target using the shortest path
-        target_angle = self.spinner_motor.angle() + delta
-        self.spinner_motor.run_target(SPINNER_SPEED, target_angle, Stop.BRAKE, wait=True)
-        print("Spinner reset to default position.")
+        print("Resetting spinner from {:.1f}° → rotating {:.1f}° to reach {}°".format(
+            current_angle, diff, 0))
 
+        # Perform relative turn
+        self.spinner_motor.run_angle(SPINNER_SPEED, diff, then=Stop.BRAKE, wait=True)
+
+        # Reset internal angle to keep it aligned with logic
+        self.spinner_motor.reset_angle(0)
+
+        print("Spinner reset complete.")
 
     def drop_off_ball(self, start: Node, target: Node):
         """
