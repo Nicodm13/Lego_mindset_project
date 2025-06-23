@@ -32,13 +32,14 @@ class Controller:
         self.right_motor = Motor(Port.B)
         self.drive_base = DriveBase(self.left_motor, self.right_motor, WHEEL_DIAMETER, AXLE_TRACK)
         self.spinner_motor = Motor(Port.C)
+        self.spinner_motor.reset_angle(0)
 
         # Initialize Sensors
         self.gyro_sensor = GyroSensor(Port.S1)
 
         # Active socket connection (set in start_server)
         self.conn = None
-
+     
         # Display message
         self.ev3.screen.print("Controller Ready")
 
@@ -54,28 +55,42 @@ class Controller:
         else:
             self.ev3.screen.print("Invalid or short path")
 
+    
     def follow_path(self, path, is_dropoff):
-        """Follow a path of nodes by driving to each of them in order.
-
-        Args:
-            path (List[Node]): List of nodes to go to, in order, starting with the node the robot is currently on.
         """
-        
-        self.start_spinner(SPINNER_SPEED)
+        Follow a path of nodes by driving to each of them in order.
+        If `is_dropoff` is True, stop at the second-last node and perform drop-off.
+        """
+        spinner_started = False
+
+        # Determine the final index to stop at
+        stop_index = len(path) - 1 if not is_dropoff else len(path) - 2
 
         i = 1
-        while i < len(path): # Stop at the previous node to the last one if not going to dropoff
-            if(self.reset_requested):
+        while i <= stop_index:
+            if self.reset_requested:
                 return
-            print("Step {}: From ({},{}) to ({},{})".format(i, path[i-1].x, path[i-1].y, path[i].x, path[i].y))
-            self.move_to(path[i-1], path[i])
+
+            nodes_remaining = stop_index - i + 1
+
+            # Start spinner only if not dropping off and 2 nodes left
+            if not spinner_started and nodes_remaining == 2 and not is_dropoff:
+                print("Starting spinner")
+                self.start_spinner(SPINNER_SPEED)
+                spinner_started = True
+
+            print("Step {}: From ({},{}) to ({},{}) - {} nodes remaining".format(
+                i, path[i - 1].x, path[i - 1].y, path[i].x, path[i].y, nodes_remaining))
+
+            self.move_to(path[i - 1], path[i])
             i += 1
 
-        # Fetch or drop off ball
-        if not len(path) >= 2:
-            pass
-        elif is_dropoff:
-            self.drop_off_ball(path[-1], path[-2])
+        # Drop off the ball if requested
+        if is_dropoff and len(path) >= 2:
+            self.drop_off_ball()
+
+        # Always reset spinner at the end
+        self.reset_spinner()
 
         # Notify PC when done
         if self.conn:
@@ -85,6 +100,8 @@ class Controller:
                 self.conn.send(message.encode())
             except Exception as e:
                 print("Failed to send DONE:", e)
+
+
 
     def move_to(self, start: Node, target: Node):
         """Rotate and drive to a **neighboring** node only if needed."""
@@ -181,6 +198,8 @@ class Controller:
             # Reset gyro to clean up drift
             self.gyro_sensor.reset_angle(target_angle)
 
+            wait(500)
+
         except OSError as e:
             print("Rotation EPERM error:", e)
             self.left_motor.stop(Stop.BRAKE)
@@ -198,6 +217,7 @@ class Controller:
         """Normalize any angle to the [0, 360) range."""
         return angle % 360
 
+
     def start_spinner(self, speed: int = 500):
         """Start rotating the spinner.
 
@@ -210,8 +230,27 @@ class Controller:
         """Stop rotating the spinner.
         """
         self.spinner_motor.stop(Stop.BRAKE)
+    
+    def reset_spinner(self):
+        # Get the current spinner angle, modulo 360 to keep within one rotation
+        current_angle = self.spinner_motor.angle() % 360
 
-    def drop_off_ball(self, start: Node, target: Node):
+        # Calculate shortest path back to SPINNER_RESET_ANGLE (which is 0)
+        target = 0 % 360
+        diff = (target - current_angle + 180) % 360 - 180  # Result is in [-180, 180]
+
+        print("Resetting spinner from {:.1f}° → rotating {:.1f}° to reach {}°".format(
+            current_angle, diff, 0))
+
+        # Perform relative turn
+        self.spinner_motor.run_angle(SPINNER_SPEED, diff, then=Stop.BRAKE, wait=True)
+
+        # Reset internal angle to keep it aligned with logic
+        self.spinner_motor.reset_angle(0)
+
+        print("Spinner reset complete.")
+
+    def drop_off_ball(self):
         """
         Drops off the ball by reversing the spinner briefly and then resetting.
         Then drives 1 node backward before sending DONE.
@@ -231,15 +270,8 @@ class Controller:
             wait(2000)  # 2 second
 
             # Reset spinner to pickup position
-            self.start_spinner(SPINNER_SPEED)
+            self.reset_spinner()
             print("Ball dropped off and spinner reset.")
-
-            # Get the distance to the previous node
-            distance = self.grid.get_distance(start, target)
-
-            # Reverse the distance
-            self.drive(-distance)
-            self.current_node = target
 
         except OSError as e:
             print("Drop-off error:", e)

@@ -1,7 +1,7 @@
 # Grid Settings (in mm)
 GRID_WIDTH = 1654
 GRID_HEIGHT = 1215
-GRID_DENSITY = 17
+GRID_DENSITY = 25
 
 # Physical robot dimensions in millimeters
 ROBOT_WIDTH = 280
@@ -15,6 +15,8 @@ DRIVE_ACCELERATION = 800 # Acceleration should be SPEED * 4
 ROTATE_SPEED = 50
 ROTATE_ACCLERATION = 200 # Acceleration should be SPEED * 4
 ROTATE_CORRECTION_THRESHOLD = 0.5
+
+# Pickup Settings
 SPINNER_SPEED = 500
 
 # Communication
