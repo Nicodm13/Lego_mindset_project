@@ -64,7 +64,7 @@ class Controller:
         spinner_started = False
 
         # Determine the final index to stop at
-        stop_index = len(path) - 1 if not is_dropoff else len(path) - 2
+        stop_index = len(path) if not is_dropoff else len(path) - 2
 
         i = 1
         while i <= stop_index:

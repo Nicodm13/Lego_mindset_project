@@ -171,6 +171,7 @@ while True:
             if len(latest_ball_counts) <= 30:
                 print("ball_counts queue not yet full") # debug
             else:
+                print("balls full: popping")
                 latest_ball_counts.popleft()
                 
                 most_common, frequency = Counter(latest_ball_counts).most_common(1)[0]
