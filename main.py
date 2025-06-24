@@ -61,7 +61,7 @@ robot_orientation = None
 orientation_corrected = False
 
 # --- Grid & Webcam Setup ---
-grid = Grid(1800, 1200, 17)
+grid = Grid(1654, 1215, 17)
 
 def handle_obstacle_marked(gx, gy):
     node = grid.get_node(gx, gy)
@@ -70,7 +70,7 @@ def handle_obstacle_marked(gx, gy):
 
 grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
 
-def open_webcam(index=2, width=1280, height=720):
+def open_webcam(index=1, width=1280, height=720):
     system = platform.system()
     logging.info(f"Detected OS: {system}")
 
