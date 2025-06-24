@@ -21,7 +21,7 @@ from util.aruco_util import get_robot_position_and_angle
 import time
 
 # --- Global Variables ---
-robot_ip = "192.168.96.19"
+robot_ip = "172.20.10.9"
 client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
@@ -68,7 +68,7 @@ def handle_obstacle_marked(gx, gy):
 
 grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
 
-def open_webcam(index=0, width=1280, height=720):
+def open_webcam(index=2, width=1280, height=720):
     system = platform.system()
     logging.info(f"Detected OS: {system}")
 
@@ -159,6 +159,24 @@ def listen_for_robot():
 
             if message == "DONE":
                 print("Robot completed its task.")
+                
+                if (robot_orientation != robot.direction.angle):
+                    def set_heading(current_gyro):
+                        if direction.ALL_DIRECTIONS == Direction.NORTH and (current_gyro != 0.0 and current_gyro != 360.0):
+                            rotate_to(Direction.ANGLE_MAP[Direction.NORTH])
+                            print(f"Correcting angle from {current_gyro} to North (0°)")
+                        elif(direction.ALL_DIRECTIONS == ANGLE_MAP.EAST and current_gyro != 90):
+                            rotate_to(direction.ANGLE_MAP.EAST)
+                            print(f"Correcting angle from {current_gyro} to East (90°)")
+                        elif(direction.ALL_DIRECTIONS == ANGLE_MAP.SOUTH and current_gyro != 180.0):
+                            rotate_to(direction.ANGLE_MAP.SOUTH)
+                            print(f"Correcting angle from {current_gyro} to South (180°)")
+                        elif(direction.ALL_DIRECTIONS == ANGLE_MAP.WEST and current_gyro != 270):
+                            rotate_to(direction.ANGLE_MAP.WEST)
+                            print(f"Correcting angle from {current_gyro} to West (270°)")
+                        #elif(angle_diff < 5):
+                            #do nothing
+        
 
                 if robot_position:
                     x, y = robot_position
