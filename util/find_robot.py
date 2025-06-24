@@ -151,7 +151,7 @@ def find_robot(frame, grid_overlay=None, hsv_ranges=None):
         
         if grid_overlay is not None:
             # Find the grid cell containing the robot using the proper conversion method
-            grid_x, grid_y = grid_overlay.get_coordinate_from_pixel(robot_x, robot_y)
+            grid_x, grid_y = grid_overlay.get_coordinate_from_pixel(robot_x, robot_y, is_robot=True)
             
             # Only proceed if the robot is within a valid grid cell
             if grid_x != -1 and grid_y != -1:

@@ -79,7 +79,7 @@ class GridOverlay:
 
         return frame
 
-    def get_coordinate_from_pixel(self, mx, my, is_fhd: bool = False):
+    def get_coordinate_from_pixel(self, mx, my, is_fhd: bool = False, is_robot: bool = False):
         """
         Converts a pixel coordinate (mx, my) from the image frame into a grid cell coordinate (gx, gy).
 
@@ -90,18 +90,23 @@ class GridOverlay:
         Args:
             mx (int): The x-coordinate of the pixel in the image frame.
             my (int): The y-coordinate of the pixel in the image frame.
+            is_fhd (bool): If True, assumes the image is in Full HD (1920x1080) resolution.
+                            If False, assumes 720p (1280x720) resolution.
+            is_robot (bool): If True, applies perspective correction for robot camera view.
+                             If False, uses the pixel coordinates directly. Should be false when detecting balls.
 
         Returns:
             tuple: A tuple (cell_x, cell_y) representing the grid cell coordinates.
                    Returns (-1, -1) if the pixel is outside the grid bounds or the grid cell is invalid.
         """
-        # Correct for perspective by estimation
-        scale = 0.9  # arbitrary scale factor, correct as needed
-        cam_x = 1920/2 if is_fhd else 1280/2  # assuming 1080p/720p based on is_fhd
-        cam_y = 1080/2 if is_fhd else 720/2
-    
-        diff_x, diff_y = mx - cam_x, my - cam_y
-        mx, my = int(cam_x + diff_x * scale), int(cam_y + diff_y * scale)
+        if is_robot:
+            # Correct for perspective by estimation
+            scale = 0.9  # arbitrary scale factor, correct as needed
+            cam_x = 1920/2 if is_fhd else 1280/2  # assuming 1080p/720p based on is_fhd
+            cam_y = 1080/2 if is_fhd else 720/2
+
+            diff_x, diff_y = mx - cam_x, my - cam_y
+            mx, my = int(cam_x + diff_x * scale), int(cam_y + diff_y * scale)
         
         # Convert to node
         if self.matrix is None:
