@@ -123,7 +123,7 @@ def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
                 (0, 255, 255), 2
             )
 
-            # Draw angle text instead of ID
+            # Draw angle text
             cv2.putText(
                 annotated_frame,
                 f"{grid_pos} w/ deg({angle_deg:.1f})°",

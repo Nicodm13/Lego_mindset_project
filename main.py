@@ -3,6 +3,8 @@ import sys
 import platform
 import logging
 
+from robot import direction
+
 # Add robot folder to sys.path before imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
 
@@ -157,26 +159,9 @@ def listen_for_robot():
 
             message = data.decode().strip()
 
-            if message == "DONE":
+            if message.startswith("DONE"):
+                gyro_angle = int(''.join(filter(str.isdigit, message)))
                 print("Robot completed its task.")
-                
-                if (robot_orientation != robot.direction.angle):
-                    def set_heading(current_gyro):
-                        if direction.ALL_DIRECTIONS == Direction.NORTH and (current_gyro != 0.0 and current_gyro != 360.0):
-                            rotate_to(Direction.ANGLE_MAP[Direction.NORTH])
-                            print(f"Correcting angle from {current_gyro} to North (0°)")
-                        elif(direction.ALL_DIRECTIONS == ANGLE_MAP.EAST and current_gyro != 90):
-                            rotate_to(direction.ANGLE_MAP.EAST)
-                            print(f"Correcting angle from {current_gyro} to East (90°)")
-                        elif(direction.ALL_DIRECTIONS == ANGLE_MAP.SOUTH and current_gyro != 180.0):
-                            rotate_to(direction.ANGLE_MAP.SOUTH)
-                            print(f"Correcting angle from {current_gyro} to South (180°)")
-                        elif(direction.ALL_DIRECTIONS == ANGLE_MAP.WEST and current_gyro != 270):
-                            rotate_to(direction.ANGLE_MAP.WEST)
-                            print(f"Correcting angle from {current_gyro} to West (270°)")
-                        #elif(angle_diff < 5):
-                            #do nothing
-        
 
                 if robot_position:
                     x, y = robot_position
@@ -209,10 +194,11 @@ while True:
     if connected.is_set():
         ball_data = find_ping_pong_balls(original_frame, grid_overlay)
         frame = draw_ball_detections(frame, ball_data)
-
+    robot_orientation_old = robot_orientation
     # Detect robot
     robot_position, robot_orientation, frame = get_robot_position_and_angle(original_frame, grid_overlay)
-    
+    if robot_orientation == 0: # Only update the orientation if we get a valid value
+        robot_orientation = robot_orientation_old
     # Draw grid and path overlays
     frame = grid_overlay.draw(frame)
 

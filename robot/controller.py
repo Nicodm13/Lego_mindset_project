@@ -1,5 +1,5 @@
 #!/usr/bin/env pybricks-micropython
-
+from numpy.ma.core import angle
 from pybricks.hubs import EV3Brick
 from pybricks.ev3devices import Motor, GyroSensor, UltrasonicSensor
 from pybricks.robotics import DriveBase
@@ -44,6 +44,18 @@ class Controller:
 
         # Reset the spinner
         self.reset_spinner()
+
+    def reset_angle(self):
+        """Reset the robot to a multiple of 90."""
+        current_angle = self.gyro_sensor.angle()
+        offset = self.gyro_sensor.angle()%90
+        if offset > 45:
+            correction = 90 - offset
+        else:
+            correction = -offset
+
+        self.rotate_to(current_angle + correction)
+
 
     def navigate_to_target(self, path: list[Node], is_dropoff: bool):
         """Follow a given path sent from PC."""
@@ -92,7 +104,7 @@ class Controller:
         if self.conn:
             try:
                 print("Path complete, sending DONE")
-                message = "DONE\n"
+                message = "DONE" + str(self.gyro_sensor.angle()) + "\n"
                 self.conn.send(message.encode())
             except Exception as e:
                 print("Failed to send DONE:", e)
@@ -365,6 +377,7 @@ class Controller:
                                     if node:
                                         self.current_node = node
                                         self.gyro_sensor.reset_angle(angle)
+                                        self.reset_angle() #rotate the robot to nearest 90 degree
                                         print("POSE updated: Position=({x},{y}), Angle={angle}".format(x=x, y=y, angle=angle))
                                         self.ev3.screen.print("POSE OK")
                                     else:
