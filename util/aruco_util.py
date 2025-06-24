@@ -101,7 +101,7 @@ def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
             absolute_angle = (np.degrees(angle_rad) + 360) % 360
 
             grid_north_angle = get_grid_north_angle(grid_overlay, center_x, center_y)
-            angle_deg = (absolute_angle + grid_north_angle + 360) % 360
+            angle_deg = (absolute_angle + 90 + grid_north_angle + 360) % 360
 
             # Draw marker outline
             cv2.polylines(annotated_frame, [np.int32(marker_corners)], isClosed=True, color=(0, 255, 255), thickness=2)
@@ -116,17 +116,11 @@ def get_robot_position_and_angle(frame, grid_overlay, marker_id=0):
             # Draw grid "North" arrow for visual debugging (yellow arrow)
             north_dx = int(40 * np.cos(np.radians(grid_north_angle)))
             north_dy = int(-40 * np.sin(np.radians(grid_north_angle)))
-            cv2.arrowedLine(
-                annotated_frame,
-                (center_x, center_y),
-                (center_x + north_dx, center_y + north_dy),
-                (0, 255, 255), 2
-            )
 
-            # Draw angle text
+            # Draw angle text instead of ID
             cv2.putText(
                 annotated_frame,
-                f"{grid_pos} w/ deg({angle_deg:.1f})°",
+                f"{grid_pos} /w {angle_deg:.1f}",
                 (center_x + 10, center_y - 10),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.7,
