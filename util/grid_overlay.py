@@ -79,7 +79,7 @@ class GridOverlay:
 
         return frame
 
-    def get_coordinate_from_pixel(self, mx, my):
+    def get_coordinate_from_pixel(self, mx, my, is_fhd: bool = False):
         """
         Converts a pixel coordinate (mx, my) from the image frame into a grid cell coordinate (gx, gy).
 
@@ -95,6 +95,15 @@ class GridOverlay:
             tuple: A tuple (cell_x, cell_y) representing the grid cell coordinates.
                    Returns (-1, -1) if the pixel is outside the grid bounds or the grid cell is invalid.
         """
+        # Correct for perspective by estimation
+        scale = 0.9  # arbitrary scale factor, correct as needed
+        cam_x = 1920/2 if is_fhd else 1280/2  # assuming 1080p/720p based on is_fhd
+        cam_y = 1080/2 if is_fhd else 720/2
+    
+        diff_x, diff_y = mx - cam_x, my - cam_y
+        mx, my = int(cam_x + diff_x * scale), int(cam_y + diff_y * scale)
+        
+        # Convert to node
         if self.matrix is None:
             return -1, -1
         inv_matrix = np.linalg.inv(self.matrix)
