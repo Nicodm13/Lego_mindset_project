@@ -270,13 +270,6 @@ while True:
             if unvisited:
                 if not start_node:
                     start_node = grid.get_node(*robot_position) if robot_position else None
-                    #if grid_overlay.start_point:
-                        #sx, sy = grid_overlay.start_point
-                        #start_node = grid.get_node(sx, sy)
-                    #else:
-                     #   start_node = grid.get_node(0, 0)
-                     #   print("Default start node used.")
-
                 closest = AStar.get_closest_nodes(start_node, unvisited, grid, n=1)
                 tsp_path.extend(AStar.tsp_brute_force(start_node, closest, grid))
 
