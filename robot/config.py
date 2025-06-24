@@ -1,7 +1,7 @@
 # Grid Settings (in mm)
 GRID_WIDTH = 1654
 GRID_HEIGHT = 1215
-GRID_DENSITY = 25
+GRID_DENSITY = 50
 
 # Physical robot dimensions in millimeters
 ROBOT_WIDTH = 280

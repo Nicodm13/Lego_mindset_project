@@ -49,14 +49,16 @@ class Controller:
 
     def reset_angle(self):
         """Reset the robot to a multiple of 90."""
+
         current_angle = self.gyro_sensor.angle()
         offset = self.gyro_sensor.angle()%90
         if offset > 45:
             correction = 90 - offset
         else:
             correction = -offset
-
-        self.rotate_to(current_angle + correction)
+        new_angle = current_angle + correction
+        print("Resetting angle to" + str(new_angle))
+        self.rotate_to(new_angle)
 
 
     def navigate_to_target(self, path: list[Node], is_dropoff: bool):
@@ -357,7 +359,7 @@ class Controller:
                                     node = self.grid.get_node(x, y)
                                     if node:
                                         self.current_node = node
-                                        self.gyro_sensor.reset_angle(math.floor(angle))
+                                        self.gyro_sensor.reset_angle(int(angle))
                                         self.reset_angle() #rotate the robot to nearest 90 degree
                                         print("POSE updated: Position=({x},{y}), Angle={angle}".format(x=x, y=y, angle=angle))
                                         self.ev3.screen.print("POSE OK")
