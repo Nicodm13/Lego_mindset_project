@@ -1,4 +1,6 @@
 #!/usr/bin/env pybricks-micropython
+import math
+
 from numpy.ma.core import angle
 from pybricks.hubs import EV3Brick
 from pybricks.ev3devices import Motor, GyroSensor, UltrasonicSensor
@@ -376,7 +378,7 @@ class Controller:
                                     node = self.grid.get_node(x, y)
                                     if node:
                                         self.current_node = node
-                                        self.gyro_sensor.reset_angle(angle)
+                                        self.gyro_sensor.reset_angle(math.floor(angle))
                                         self.reset_angle() #rotate the robot to nearest 90 degree
                                         print("POSE updated: Position=({x},{y}), Angle={angle}".format(x=x, y=y, angle=angle))
                                         self.ev3.screen.print("POSE OK")
