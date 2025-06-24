@@ -21,28 +21,10 @@ from util.aruco_util import get_robot_position_and_angle
 import time
 
 # --- Global Variables ---
-robot_ip = "192.168.96.19"
+robot_ip = "172.20.10.9"
 client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
-
-# Run HSV calibration at startup
-'''print("Starting HSV calibration for robot detection...")
-try:
-    # Get HSV ranges from the debug interface
-    hsv_ranges = debug_robot_detection()
-    print("HSV calibration complete. Values will be used for robot detection.")
-except Exception as e:
-    print(f"HSV calibration failed: {e}")
-    # Use default values if calibration fails
-    hsv_ranges = (
-        np.array([85, 20, 100]),  # lower_blue
-        np.array([110, 150, 220]),  # upper_blue
-        np.array([25, 40, 100]),   # lower_green
-        np.array([40, 255, 255])   # upper_green
-    )
-    print("Using default HSV values for robot detection")
-'''
 start_node = None
 visited_balls = set()
 target_node = None
@@ -59,7 +41,7 @@ robot_orientation = None
 orientation_corrected = False
 
 # --- Grid & Webcam Setup ---
-grid = Grid(1800, 1200, 17)
+grid = Grid(1657, 1215, 17)
 
 def handle_obstacle_marked(gx, gy):
     node = grid.get_node(gx, gy)
@@ -68,7 +50,7 @@ def handle_obstacle_marked(gx, gy):
 
 grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
 
-def open_webcam(index=0, width=1280, height=720):
+def open_webcam(index=1, width=1280, height=720):
     system = platform.system()
     logging.info(f"Detected OS: {system}")
 

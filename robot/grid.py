@@ -48,19 +48,22 @@ class Grid:
 
     
 
-    def is_walkable(self, node: Node, robot_width: float = 0, robot_length: float = 0):
-        """Check if a node is walkable, considering robot size."""
+    def is_walkable(self, node: Node, robot_width_mm: float = 0, robot_length_mm: float = 0):
+        """Check if a node is walkable, considering robot size in millimeters."""
         if node.is_obstacle:
             return False
 
         # If robot size is specified, check area around node
-        if robot_width > 0 and robot_length > 0:
+        if robot_width_mm > 0 and robot_length_mm > 0:
+            robot_width, robot_length = self.get_robot_size_in_nodes(robot_width_mm, robot_length_mm)
             # Calculate how many nodes robot would cover
-            nodes_per_width = int((robot_width / (self.width / self.density)) / 2)
-            nodes_per_length = int((robot_length / (self.height / self.density)) / 2)
+            # nodes_per_width = int((robot_width / (self.width / self.density)) / 2)
+            # nodes_per_length = int((robot_length / (self.height / self.density)) / 2)
+            robot_width_half = math.ceil(robot_width / 2)
+            robot_length_half = math.ceil(robot_length / 2)
 
-            for dx in range(-nodes_per_width, nodes_per_width + 1):
-                for dy in range(-nodes_per_length, nodes_per_length + 1):
+            for dx in range(-robot_width_half, robot_width_half + 1):
+                for dy in range(-robot_length_half, robot_length_half + 1):
                     neighbor = self.get_node(node.x + dx, node.y + dy)
                     if neighbor and neighbor.is_obstacle:
                         return False
@@ -83,8 +86,8 @@ class Grid:
         node_width_mm = self.width / self.density
         node_height_mm = self.height / self.density
 
-        nodes_x = int((robot_width / node_width_mm) + 0.5)
-        nodes_y = int((robot_length / node_height_mm) + 0.5)
-
-        return nodes_x, nodes_y
+        size_x = int((robot_width / node_width_mm) + 0.5)
+        size_y = int((robot_length / node_height_mm) + 0.5)
+        print("Robot size measured in nodes - X:", size_x, "Y:", size_y)
+        return size_x, size_y
 
