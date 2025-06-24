@@ -1,5 +1,7 @@
 import os
 import sys
+import platform
+import logging
 
 # Add robot folder to sys.path before imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
@@ -66,25 +68,40 @@ def handle_obstacle_marked(gx, gy):
 
 grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
 
-print("Opening webcam...")
-cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+def open_webcam(index=0, width=1280, height=720):
+    system = platform.system()
+    logging.info(f"Detected OS: {system}")
 
-# Wait until it's ready
-while not cap.isOpened():
-    print("Waiting for camera...")
-    time.sleep(0.5)
+    if system == "Windows":
+        cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+    elif system == "Darwin":
+        cap = cv2.VideoCapture(index, cv2.CAP_AVFOUNDATION)
+    elif system == "Linux":
+        cap = cv2.VideoCapture(index, cv2.CAP_V4L2)
+    else:
+        logging.error(f"Unsupported OS: {system}")
+        return None
 
-# Warm-up
-for _ in range(5):
-    cap.read()
-    cv2.waitKey(30)
+    if not cap.isOpened():
+        logging.info("Initial webcam open failed. Retrying...")
+        for i in range(5):
+            time.sleep(0.5)
+            cap.open(index)
+            if cap.isOpened():
+                break
 
-ret, frame = cap.read()
-if not ret:
-    print("Webcam couldn't be opened.")
-    exit()
+    if cap.isOpened():
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+
+        ret, _ = cap.read()
+        if not ret:
+            logging.error("Webcam opened but failed to read frames.")
+            return None
+        return cap
+    else:
+        logging.error("Could not open webcam.")
+        return None
 
 # --- OpenCV Window Setup ---
 WINDOW_NAME = "Webcam Feed"
@@ -153,6 +170,12 @@ def listen_for_robot():
     except (ConnectionResetError, ConnectionAbortedError, OSError) as e:
         print(f"Listener disconnected: {e}")
         connected.clear()
+        
+# --- Webcam Initialization ---
+cap = open_webcam()
+if cap is None:
+    logging.error("Webcam could not be initialized. Exiting.")
+    sys.exit(1)
 
 # --- Main Loop ---
 while True:
