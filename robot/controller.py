@@ -1,15 +1,13 @@
 #!/usr/bin/env pybricks-micropython
-import math
 
-from numpy.ma.core import angle
 from pybricks.hubs import EV3Brick
 from pybricks.ev3devices import Motor, GyroSensor, UltrasonicSensor
 from pybricks.robotics import DriveBase
-from pybricks.parameters import Port, Stop, Direction
+from pybricks.parameters import Port, Stop
 from pybricks.tools import wait
 
 from config import *
-
+from direction import Direction
 from node import Node
 from grid import Grid
 
