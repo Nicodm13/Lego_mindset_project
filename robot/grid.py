@@ -69,6 +69,9 @@ class Grid:
 
     def add_obstacle(self, node: Node):
         node.is_obstacle = True
+
+    def remove_obstacle(self, node: Node):
+        node.is_obstacle = False
     
     def get_dropoff(self, dropoffset: int, robot_width: int, robot_length: int):
         node_y = self.density // 2

@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 class GridOverlay:
-    def __init__(self, width=1800, height=1200, density=4, on_mark_obstacle=None):
+    def __init__(self, width=1800, height=1200, density=4, on_mark_obstacle=None, on_unmark_obstacle=None):
         self.width = width
         self.height = height
         self.grid_rows = self.grid_cols = density
@@ -12,6 +12,7 @@ class GridOverlay:
         self.dragging_point = -1
         self.matrix = None
         self.on_mark_obstacle = on_mark_obstacle
+        self.on_unmark_obstacle = on_unmark_obstacle
 
     def draw(self, frame):
         src = np.float32([[0, 0], [1, 0], [1, 1], [0, 1]])
@@ -153,7 +154,11 @@ class GridOverlay:
                 gx, gy = self.get_coordinate_from_pixel(mx, my)
                 # Only mark if valid cell and not already marked
                 if (gx, gy) != (-1, -1) and (gx, gy) != self.last_marked_cell:
-                    if (gx, gy) not in self.obstacles:
+                    if (gx, gy) in self.obstacles:
+                        self.obstacles.remove((gx, gy))
+                        if self.on_unmark_obstacle:
+                            self.on_unmark_obstacle(gx, gy)
+                    else:
                         self.obstacles.append((gx, gy))
                         self.last_marked_cell = (gx, gy)
                         if self.on_mark_obstacle:

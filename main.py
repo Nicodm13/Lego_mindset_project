@@ -55,7 +55,12 @@ def handle_obstacle_marked(gx, gy):
     if node:
         grid.add_obstacle(node)
 
-grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
+def handle_obstacle_unmarked(gx, gy):
+    node = grid.get_node(gx, gy)
+    if node:
+        grid.remove_obstacle(node)
+
+grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked, on_unmark_obstacle=handle_obstacle_unmarked)
 
 def open_webcam(index=1, width=1280, height=720):
     system = platform.system()
