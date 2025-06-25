@@ -2,6 +2,7 @@
 GRID_WIDTH = 1654
 GRID_HEIGHT = 1215
 GRID_DENSITY = 30
+PREFERRED_DROPOFF=1
 
 # Physical robot dimensions in millimeters
 ROBOT_WIDTH = 280

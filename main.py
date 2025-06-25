@@ -216,7 +216,7 @@ while True:
     # --- Automated Ball Path Execution ---
     if connected.is_set() and not awaiting_response:
         if is_dropoff_time:
-            dropoff_node = grid.get_dropoff(dropoffset=1, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
+            dropoff_node = grid.get_dropoff(dropoffset=PREFERRED_DROPOFF, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
             path = AStar.find_path(start_node, dropoff_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
             if path:
                 latest_path = path
