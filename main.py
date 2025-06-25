@@ -106,48 +106,25 @@ cv2.setMouseCallback(WINDOW_NAME, grid_overlay.mouse_events)
 # --- Robot Connection Thread ---
 def connect_to_robot():
     global client_socket
-
     print(f"Connecting to robot at {robot_ip}:{ROBOT_PORT}...")
-    connection_failed.clear()
-    connected.clear()
-
     try:
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.settimeout(1.0)
         client_socket.connect((robot_ip, ROBOT_PORT))
-        client_socket.settimeout(None)
+        print("Connected to robot!")
+        connected.set()
 
-        # Start listener before sending commands
-        threading.Thread(target=listen_for_robot, daemon=True).start()
-
-        # Send INIT first
+        # Initialize the robot
         init_command = f"INIT {grid.width} {grid.height} {grid.density}\n"
         client_socket.sendall(init_command.encode())
         print(f"Sent: {init_command.strip()}")
 
-        # Wait for READY
-        timeout_seconds = 5
-        def wait_for_ready(timeout_seconds):
-            print(f"Waiting for robot to send READY...")
-            start_time = time.time()
-            while time.time() - start_time < timeout_seconds:
-                if connected.is_set():
-                    return True
-                time.sleep(0.1)
-            return False
-
-        if not wait_for_ready(timeout_seconds):
-            raise TimeoutError(f"Robot did not respond with READY in {timeout_seconds} seconds.")
-
-        # Send OBSTACLE
+        # Send obstacles
         obstacle_nodes = [
-            node for col in grid.grid for node in col if node.is_obstacle
+            node
+            for col in grid.grid
+            for node in col
+            if node.is_obstacle
         ]
-
-        print("Obstacle nodes being sent:")
-        for node in obstacle_nodes:
-            print(f"  - ({node.x}, {node.y})")
-
         if obstacle_nodes:
             obstacle_str = " ".join(f"{{{n.x},{n.y}}}" for n in obstacle_nodes)
             msg = f"OBSTACLE {obstacle_str}\n"
@@ -156,15 +133,10 @@ def connect_to_robot():
         else:
             print("No obstacles to send.")
 
+        threading.Thread(target=listen_for_robot, daemon=True).start()
+
     except Exception as e:
-        print(f"Connection setup failed: {e}")
-        try:
-            if client_socket:
-                client_socket.close()
-        except:
-            pass
-        client_socket = None
-        connected.clear()
+        print(f"Failed to connect: {e}")
         connection_failed.set()
 
 # --- Robot Listener ---
@@ -178,11 +150,6 @@ def listen_for_robot():
                 connected.clear()
                 break
             message = data.decode().strip()
-
-            if message.startswith("READY"):
-                print("Robot is ready. Connection established.")
-                connected.set() 
-
             if message.startswith("DONE"):
                 parts = message.split()
                 if len(parts) == 2:
