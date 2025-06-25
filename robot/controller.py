@@ -122,22 +122,28 @@ class Controller:
 
 
     def move_to(self, start: Node, target: Node):
-        """Rotate and drive to a **neighboring** node only if needed."""
+        """Use external ArUco orientation to determine curve vs turn, and move to target node."""
         xdiff = target.x - start.x
         ydiff = target.y - start.y
+        target_angle = self.offset_to_angle(xdiff, ydiff)
 
-        angle = self.offset_to_angle(xdiff, ydiff)
-        current_gyro = self.gyro_sensor.angle()
-
-        angle_difference = abs(self.angle_diff(angle, current_gyro))
-
-        # Only rotate if angle difference is significant
-        if angle_difference >= ROTATE_CORRECTION_THRESHOLD:
-            self.rotate_to(angle)
-
+        # Use external ArUco orientation if available; fallback to gyro
+        current_angle = getattr(self, "external_orientation", self.gyro_sensor.angle())
+        
+        angle_difference = self.angle_diff(target_angle, current_angle)
         distance = self.grid.get_distance(start, target)
-        self.drive(distance)
+
+        print(f"External orientation: {current_angle:.1f}°, Target angle: {target_angle}°, Δ = {angle_difference:.1f}°")
+
+        if abs(angle_difference) <= 30:
+            self.drive_curve(distance, angle_difference)
+        else:
+            self.rotate_to(target_angle)
+            self.drive(distance)
+
         self.current_node = target
+
+
 
 
     def offset_to_angle(self, xdiff: int, ydiff: int) -> int:
@@ -159,24 +165,60 @@ class Controller:
         except (KeyError, ValueError) as e:
             raise ValueError("Invalid offset ({}, {}) for direction lookup.".format(xdiff, ydiff)) from e
 
-    def drive(self, distance: float):
-        """Drive forward a specific distance using DriveBase.straight() with safe control."""
+    def move_to(self, start: Node, target: Node):
+        """Rotate and drive to a neighboring node, using curve when appropriate."""
+        xdiff = target.x - start.x
+        ydiff = target.y - start.y
+        target_angle = self.offset_to_angle(xdiff, ydiff)
+        current_angle = self.gyro_sensor.angle()
+        
+        # You can switch to ArUco heading here if available:
+        # current_angle = self.external_orientation if hasattr(self, "external_orientation") else self.gyro_sensor.angle()
+        
+        angle_difference = self.angle_diff(target_angle, current_angle)
+        distance = self.grid.get_distance(start, target)
+
+        # Use curve if the angle difference is small enough
+        if abs(angle_difference) <= 30:
+            self.drive_curve(distance, angle_difference)
+        else:
+            self.rotate_to(target_angle)
+            self.drive(distance)
+
+        self.current_node = target
+
+
+    def drive_curve(self, distance: float, angle_delta: float):
         try:
             self.drive_base.stop()
-
             self.drive_base.settings(DRIVE_SPEED, DRIVE_ACCELERATION)
 
-            print("Driving: Distance={}, Speed={}".format(distance, DRIVE_SPEED))
-            self.drive_base.straight(distance)
+            # Adjust scale factor to control curve sharpness
+            turn_rate = angle_delta / (distance / 10)
+
+            print(f"Curve driving: Distance={distance:.1f}, TurnRate={turn_rate:.1f}")
+            self.drive_base.curve(distance, turn_rate)
+
+            # No gyro correction if you use ArUco afterward
+            # Optionally: update external_orientation += angle_delta
 
         except OSError as e:
-            print("Drive EPERM error:", e)
+            print("Curve drive error:", e)
             self.left_motor.stop(Stop.BRAKE)
             self.right_motor.stop(Stop.BRAKE)
-
         finally:
             self.drive_base.stop()
 
+
+
+    def correct_heading(self, target_angle: float):
+        current = self.normalize_angle(self.gyro_sensor.angle())
+        delta = self.angle_diff(target_angle, current)
+
+        if abs(delta) > ROTATE_CORRECTION_THRESHOLD:
+            print(f"Correcting heading: delta={delta:.1f}")
+            self.drive_base.turn(delta)
+            self.gyro_sensor.reset_angle(target_angle)
 
     def rotate_to(self, target_angle: float):
         """
@@ -359,9 +401,8 @@ class Controller:
                                     node = self.grid.get_node(x, y)
                                     if node:
                                         self.current_node = node
-                                        self.gyro_sensor.reset_angle(int(angle))
-                                        self.reset_angle() #rotate the robot to nearest 90 degree
-                                        print("POSE updated: Position=({x},{y}), Angle={angle}".format(x=x, y=y, angle=angle))
+                                        self.external_orientation = angle  # <== NEW LINE
+                                        self.gyro_sensor.reset_angle(int(angle))  # keep gyro in sync (optional fallback)
                                         self.ev3.screen.print("POSE OK")
                                     else:
                                         self.ev3.screen.print("POSE node invalid")
