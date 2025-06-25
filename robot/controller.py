@@ -319,19 +319,28 @@ class Controller:
                     self.ev3.screen.clear()
                     self.ev3.screen.print("Cmd: {}".format(command))
 
-                    if command.startswith("INIT"):
-                        parts = command.split()
-                        if len(parts) == 4:
-                            try:
-                                width = int(parts[1])
-                                height = int(parts[2])
-                                density = int(parts[3])
-                                self.grid = Grid(width, height, density)
-                                self.reset_requested = False  # clear reset flag
-                                self.gyro_sensor.reset_angle(0)
-                                self.ev3.screen.print("Grid Init: {},{},{}".format(width, height, density))
-                            except ValueError:
-                                self.ev3.screen.print("Invalid INIT")
+                if command.startswith("INIT"):
+                    parts = command.split()
+                    if len(parts) == 4:
+                        try:
+                            width = int(parts[1])
+                            height = int(parts[2])
+                            density = int(parts[3])
+                            self.grid = Grid(width, height, density)
+                            self.reset_requested = False  # clear reset flag
+                            self.gyro_sensor.reset_angle(0)
+                            self.ev3.screen.print("Grid Init: {},{},{}".format(width, height, density))
+
+                            # Send READY response to PC
+                            if self.conn:
+                                try:
+                                    self.conn.send(b"READY\n")
+                                    print("Sent READY to client.")
+                                except Exception as e:
+                                    print("Failed to send READY:", e)
+
+                        except ValueError:
+                            self.ev3.screen.print("Invalid INIT")
 
                     elif command.startswith("OBSTACLE"):
                         parts = command.split()[1:]

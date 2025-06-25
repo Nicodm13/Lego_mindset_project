@@ -167,7 +167,7 @@ def connect_to_robot():
                 pass
             connected.clear()
             connection_failed.set()
-            print("Connection reset. Returning to initial state (obstacles preserved).")
+            print("Connection reset. Returning to initial state.")
 
     threading.Thread(target=connection_watchdog, daemon=True).start()
 
@@ -183,8 +183,9 @@ def listen_for_robot():
                 break
             message = data.decode().strip()
 
-            if not connected.is_set():
-                connected.set()
+            if message.startswith("READY"):
+                print("Robot is ready. Connection established.")
+                connected.set() 
 
             if message.startswith("DONE"):
                 parts = message.split()
