@@ -13,7 +13,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
 import cv2
 import socket
 import threading
-import time
 from robot.config import *
 from robot.grid import Grid
 from pathfinding.astar import AStar

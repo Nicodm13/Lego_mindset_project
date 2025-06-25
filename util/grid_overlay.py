@@ -107,7 +107,7 @@ class GridOverlay:
 
             diff_x, diff_y = mx - cam_x, my - cam_y
             mx, my = int(cam_x + diff_x * scale), int(cam_y + diff_y * scale)
-        
+
         # Convert to node
         if self.matrix is None:
             return -1, -1
@@ -132,19 +132,37 @@ class GridOverlay:
             index = self.get_point_index(mx, my)
             if index != -1:
                 self.dragging_point = index
+
         elif event == cv2.EVENT_RBUTTONDOWN:
             if self.get_point_index(mx, my) == -1:
+                self.marking_obstacles = True
                 gx, gy = self.get_coordinate_from_pixel(mx, my)
                 if (gx, gy) != (-1, -1):
                     if (gx, gy) in self.obstacles:
                         self.obstacles.remove((gx, gy))
                     else:
                         self.obstacles.append((gx, gy))
+                        self.last_marked_cell = (gx, gy)
                         if self.on_mark_obstacle:
                             self.on_mark_obstacle(gx, gy)
 
-        elif event == cv2.EVENT_MOUSEMOVE and self.dragging_point != -1:
-            self.corners[self.dragging_point] = (mx, my)
+        elif event == cv2.EVENT_MOUSEMOVE:
+            if self.dragging_point != -1:
+                self.corners[self.dragging_point] = (mx, my)
+            elif self.marking_obstacles:
+                gx, gy = self.get_coordinate_from_pixel(mx, my)
+                # Only mark if valid cell and not already marked
+                if (gx, gy) != (-1, -1) and (gx, gy) != self.last_marked_cell:
+                    if (gx, gy) not in self.obstacles:
+                        self.obstacles.append((gx, gy))
+                        self.last_marked_cell = (gx, gy)
+                        if self.on_mark_obstacle:
+                            self.on_mark_obstacle(gx, gy)
 
         elif event == cv2.EVENT_LBUTTONUP:
             self.dragging_point = -1
+
+        elif event == cv2.EVENT_RBUTTONUP:
+            # End obstacle marking mode
+            self.marking_obstacles = False
+            self.last_marked_cell = None
