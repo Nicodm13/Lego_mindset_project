@@ -233,12 +233,18 @@ while True:
                         client_socket.sendall(pose_msg.encode())
                         print(f"Sent COMMAND: {pose_msg.strip()}")
 
-                    path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
-                    move_command = f"DROPOFF {path_str}\n"
+                    is_fragment = len(path) > (FRAGMENT_SIZE * 2) + 1  # + 1 because start node is included in path
+                    if is_fragment:
+                        path = path[0:(FRAGMENT_SIZE*2) + 1]  # only include the first FRAGMENT_SIZE nodes
+                        path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                        move_command = f"FRAGMENT {path_str}\n"
+                    else:
+                        path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                        move_command = f"DROPOFF {path_str}\n"
                     client_socket.sendall(move_command.encode())
                     print(f"Sent COMMAND: {move_command.strip()}")
                     awaiting_response = True
-                    is_dropoff_time = False
+                    is_dropoff_time = is_fragment
                 except Exception as e:
                     print(f"Error sending dropoff: {e}")
             else:
@@ -256,13 +262,21 @@ while True:
                         pose_msg = f"POSE {{{gx},{gy}}} {orientation}\n"
                         client_socket.sendall(pose_msg.encode())
                         print(f"Sent COMMAND: {pose_msg.strip()}")
-                    path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
-                    move_command = f"MOVE {path_str}\n"
+                    is_fragment = len(path) > FRAGMENT_SIZE + 1  # + 1 because start node is included in path
+                    if is_fragment:
+                        path = path[0:FRAGMENT_SIZE + 1]  # only include the first FRAGMENT_SIZE nodes
+                        path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                        move_command = f"FRAGMENT {path_str}\n"
+                    else:
+                        path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                        move_command = f"MOVE {path_str}\n"
                     client_socket.sendall(move_command.encode())
                     print(f"Sent COMMAND: {move_command.strip()}")
-                    visited_balls.add((next_node.x, next_node.y))
+                    if not is_fragment:
+                        visited_balls.add((next_node.x, next_node.y))
+                        is_dropoff_time = True
+                        print("it's dropoff time!!")
                     awaiting_response = True
-                    is_dropoff_time = True
                 except Exception as e:
                     print(f"Error sending move: {e}")
             else:
