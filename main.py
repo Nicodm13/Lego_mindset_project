@@ -228,7 +228,7 @@ while True:
                         client_socket.sendall(pose_msg.encode())
                         print(f"Sent COMMAND: {pose_msg.strip()}")
 
-                    is_fragment = len(path) > FRAGMENT_SIZE + 1
+                    is_fragment = len(path) > FRAGMENT_SIZE + 1  # + 1 because start node is included in path
                     if is_fragment:
                         path = path[0:FRAGMENT_SIZE + 1]  # only include the first FRAGMENT_SIZE nodes
                         path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
@@ -257,7 +257,7 @@ while True:
                         pose_msg = f"POSE {{{gx},{gy}}} {orientation}\n"
                         client_socket.sendall(pose_msg.encode())
                         print(f"Sent COMMAND: {pose_msg.strip()}")
-                    is_fragment = len(path) > FRAGMENT_SIZE + 1
+                    is_fragment = len(path) > FRAGMENT_SIZE + 1  # + 1 because start node is included in path
                     if is_fragment:
                         path = path[0:FRAGMENT_SIZE + 1]  # only include the first FRAGMENT_SIZE nodes
                         path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
