@@ -82,13 +82,10 @@ class Controller:
         spinner_started = False
 
         # Determine the final index to stop at
-        match mode:
-            case 'DROPOFF':
-                stop_index = len(path) - 2
-            case 'FRAGMENT':
-                stop_index = len(path)
-            case _:
-                stop_index = len(path) - 1
+        if mode == 'DROPOFF':
+            stop_index = len(path) - 2
+        else:
+            stop_index = len(path) - 1
 
         i = 1
         while i <= stop_index:
