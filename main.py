@@ -25,7 +25,7 @@ from util.aruco_util import get_robot_position_and_angle
 import time
 
 # --- Global Variables ---
-robot_ip = "192.168.2.17"
+robot_ip = "192.168.2.19"
 client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
