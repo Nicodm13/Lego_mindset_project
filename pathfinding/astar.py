@@ -21,33 +21,32 @@ class AStar:
 
     @staticmethod
     def find_path(start: Node, target: Node, grid: Grid, robot_width=0, robot_length=0):
-        def find_path(start: Node, target: Node, grid: Grid, robot_width=0, robot_length=0):
-            """
-            Find the optimal path from start node to target node using the A* algorithm.
+        """
+        Find the optimal path from start node to target node using the A* algorithm.
 
-            The algorithm finds the shortest path while considering:
-            - Robot dimensions for collision avoidance
-            - Special perpendicular approaches for targets on grid edges
+        The algorithm finds the shortest path while considering:
+        - Robot dimensions for collision avoidance
+        - Special perpendicular approaches for targets on grid edges
 
-            Parameters:
-            ----------
-            start : Node
-                The starting node for path calculation
-            target : Node
-                The destination node to reach
-            grid : Grid
-                The grid environment containing all navigable and obstacle nodes
-            robot_width : int, optional
-                Width of the robot in grid units (default 0)
-            robot_length : int, optional
-                Length of the robot in grid units (default 0)
+        Parameters:
+        ----------
+        start : Node
+            The starting node for path calculation
+        target : Node
+            The destination node to reach
+        grid : Grid
+            The grid environment containing all navigable and obstacle nodes
+        robot_width : int, optional
+            Width of the robot in grid units (default 0)
+        robot_length : int, optional
+            Length of the robot in grid units (default 0)
 
-            Returns:
-            -------
-            list[Node]
-                Ordered list of nodes from start to target representing the optimal path
-                Empty list if no valid path exists
-            """
+        Returns:
+        -------
+        list[Node]
+            Ordered list of nodes from start to target representing the optimal path
+            Empty list if no valid path exists
+        """
         # Reset all nodes
         for col in grid.grid:
             for node in col:
