@@ -21,6 +21,33 @@ class AStar:
 
     @staticmethod
     def find_path(start: Node, target: Node, grid: Grid, robot_width=0, robot_length=0):
+        def find_path(start: Node, target: Node, grid: Grid, robot_width=0, robot_length=0):
+            """
+            Find the optimal path from start node to target node using the A* algorithm.
+
+            The algorithm finds the shortest path while considering:
+            - Robot dimensions for collision avoidance
+            - Special perpendicular approaches for targets on grid edges
+
+            Parameters:
+            ----------
+            start : Node
+                The starting node for path calculation
+            target : Node
+                The destination node to reach
+            grid : Grid
+                The grid environment containing all navigable and obstacle nodes
+            robot_width : int, optional
+                Width of the robot in grid units (default 0)
+            robot_length : int, optional
+                Length of the robot in grid units (default 0)
+
+            Returns:
+            -------
+            list[Node]
+                Ordered list of nodes from start to target representing the optimal path
+                Empty list if no valid path exists
+            """
         # Reset all nodes
         for col in grid.grid:
             for node in col:
@@ -111,6 +138,15 @@ class AStar:
                     heapq.heappush(open_set, (neighbor.f_cost, neighbor))
 
         return []
+
+    @staticmethod
+    def find_path_fragment(length: int, start: Node, target: Node, grid: Grid, robot_width=0, robot_length=0):
+        """
+        Finds the first `length` nodes of the path from `start` to `target` using A* algorithm.
+        """
+        full_path = AStar.find_path(start, target, grid, robot_width, robot_length)
+        return full_path[:length] if full_path else []
+
 
     @staticmethod
     def dijkstra(start: Node, grid: Grid):
