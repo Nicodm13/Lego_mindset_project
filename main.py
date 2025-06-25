@@ -105,10 +105,17 @@ cv2.setMouseCallback(WINDOW_NAME, grid_overlay.mouse_events)
 # --- Robot Connection Thread ---
 def connect_to_robot():
     global client_socket
+
     print(f"Connecting to robot at {robot_ip}:{ROBOT_PORT}...")
+    connection_failed.clear()
+    connected.clear()
+
     try:
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.settimeout(1.0)  # Short timeout per attempt
         client_socket.connect((robot_ip, ROBOT_PORT))
+        client_socket.settimeout(None)  # Remove timeout after connection
+
         print("Connected to robot!")
         connected.set()
 
@@ -128,7 +135,7 @@ def connect_to_robot():
         print("Obstacle nodes being sent:")
         for node in obstacle_nodes:
             print(f"  - ({node.x}, {node.y})")
-        
+
         if obstacle_nodes:
             obstacle_str = " ".join(f"{{{n.x},{n.y}}}" for n in obstacle_nodes)
             msg = f"OBSTACLE {obstacle_str}\n"
@@ -140,8 +147,32 @@ def connect_to_robot():
         threading.Thread(target=listen_for_robot, daemon=True).start()
 
     except Exception as e:
-        print(f"Failed to connect: {e}")
+        print(f"Initial connection failed: {e}")
+        client_socket = None
         connection_failed.set()
+        return
+
+    # Watchdog timeout to detect if robot never responds
+    def connection_watchdog(timeout_seconds=5):
+        print(f"Waiting for robot response for up to {timeout_seconds} seconds...")
+        start_time = time.time()
+
+        while time.time() - start_time < timeout_seconds:
+            if connected.is_set():
+                return  # Robot responded
+            time.sleep(0.2)
+
+        if not connected.is_set():
+            print(f"Connection timeout after {timeout_seconds} seconds. Robot did not respond.")
+            try:
+                client_socket.close()
+            except:
+                pass
+            connected.clear()
+            connection_failed.set()
+            print("Connection reset. Returning to initial state (obstacles preserved).")
+
+    threading.Thread(target=connection_watchdog, daemon=True).start()
 
 # --- Robot Listener ---
 def listen_for_robot():
