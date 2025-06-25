@@ -216,7 +216,7 @@ while True:
     # --- Automated Ball Path Execution ---
     if connected.is_set() and not awaiting_response:
         if is_dropoff_time:
-            dropoff_node = grid.get_dropoff(dropoffset=1, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
+            dropoff_node = grid.get_dropoff(dropoffset=PREFERRED_DROPOFF, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
             path = AStar.find_path(start_node, dropoff_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
             if path:
                 latest_path = path
@@ -251,13 +251,19 @@ while True:
                         pose_msg = f"POSE {{{gx},{gy}}} {orientation}\n"
                         client_socket.sendall(pose_msg.encode())
                         print(f"Sent COMMAND: {pose_msg.strip()}")
-                    path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
-                    move_command = f"MOVE {path_str}\n"
+                    is_fragment = len(path) > FRAGMENT_SIZE
+                    if is_fragment:
+                        path = path[0:FRAGMENT_SIZE]
+                        path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                        move_command = f"FRAGMENT {path_str}\n"
+                    else:
+                        path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                        move_command = f"MOVE {path_str}\n"
                     client_socket.sendall(move_command.encode())
                     print(f"Sent COMMAND: {move_command.strip()}")
                     visited_balls.add((next_node.x, next_node.y))
                     awaiting_response = True
-                    is_dropoff_time = True
+                    is_dropoff_time = not is_fragment
                 except Exception as e:
                     print(f"Error sending move: {e}")
             else:

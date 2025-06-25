@@ -61,7 +61,7 @@ class Controller:
         self.rotate_to(new_angle)
 
 
-    def navigate_to_target(self, path: list[Node], is_dropoff: bool):
+    def navigate_to_target(self, path: list[Node], mode: str):
         """Follow a given path sent from PC."""
         if(self.reset_requested):
             return
@@ -69,12 +69,12 @@ class Controller:
         if path and len(path) >= 2:
             print("Navigating to path with {} nodes".format(len(path)))
             self.current_node = path[0]
-            self.follow_path(path, is_dropoff)
+            self.follow_path(path, mode)
         else:
             self.ev3.screen.print("Invalid or short path")
 
 
-    def follow_path(self, path, is_dropoff):
+    def follow_path(self, path, mode):
         """
         Follow a path of nodes by driving to each of them in order.
         If `is_dropoff` is True, stop at the second-last node and perform drop-off.
@@ -82,7 +82,13 @@ class Controller:
         spinner_started = False
 
         # Determine the final index to stop at
-        stop_index = len(path) - 1 if not is_dropoff else len(path) - 2
+        match mode:
+            case 'DROPOFF':
+                stop_index = len(path) - 2
+            case 'FRAGMENT':
+                stop_index = len(path)
+            case _:
+                stop_index = len(path) - 1
 
         i = 1
         while i <= stop_index:
@@ -91,11 +97,12 @@ class Controller:
 
             nodes_remaining = stop_index - i + 1
 
-            # Start spinner only if not dropping off and 2 nodes left
-            if not spinner_started and nodes_remaining == 2 and not is_dropoff:
-                print("Starting spinner")
-                self.start_spinner(SPINNER_SPEED)
-                spinner_started = True
+            # Start spinner only if picking up and 2 nodes left
+            if mode == 'MOVE':
+                if not spinner_started and nodes_remaining == 2:
+                    print("Starting spinner")
+                    self.start_spinner(SPINNER_SPEED)
+                    spinner_started = True
 
             print("Step {}: From ({},{}) to ({},{}) - {} nodes remaining".format(
                 i, path[i - 1].x, path[i - 1].y, path[i].x, path[i].y, nodes_remaining))
@@ -104,11 +111,12 @@ class Controller:
             i += 1
 
         # Drop off the ball if requested
-        if is_dropoff and len(path) >= 2:
+        if mode == 'DROPOFF' and len(path) >= 2:
             self.drop_off_ball()
 
-        # Always reset spinner at the end
-        self.reset_spinner()
+        if mode != 'FRAGMENT':
+            # Always reset spinner at the end
+            self.reset_spinner()
 
         # Notify PC when done
         if self.conn:
@@ -118,7 +126,6 @@ class Controller:
                 self.conn.send(message.encode())
             except Exception as e:
                 print("Failed to send DONE:", e)
-
 
 
     def move_to(self, start: Node, target: Node):
@@ -371,10 +378,9 @@ class Controller:
                         else:
                             self.ev3.screen.print("Invalid POSE format")
 
-
-                    elif command.startswith("MOVE") or command.startswith("DROPOFF"):
-                        is_dropoff = command.startswith("DROPOFF")
+                    elif command.startswith("MOVE") or command.startswith("DROPOFF") or command.startswith("FRAGMENT"):
                         parts = command.split()
+                        mode = parts[0]
                         coords = []
                         for coord_str in parts[1:]:
                             coord_str = coord_str.strip("{}")
@@ -389,7 +395,7 @@ class Controller:
                                     self.ev3.screen.print("Invalid MOVE coord")
 
                         if len(coords) >= 2:
-                            self.navigate_to_target(coords, is_dropoff)
+                            self.navigate_to_target(coords, mode)
                         else:
                             self.ev3.screen.print("Invalid MOVE path")
 
