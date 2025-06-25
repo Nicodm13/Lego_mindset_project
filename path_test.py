@@ -20,9 +20,19 @@ def handle_obstacle_marked(gx, gy):
     node = grid.get_node(gx, gy)
     if node:
         grid.add_obstacle(node)
+        print(f"Marked obstacle: ({gx}, {gy})")
 
-grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
+def handle_obstacle_unmarked(gx, gy):
+    node = grid.get_node(gx, gy)
+    if node:
+        grid.remove_obstacle(node)
+        print(f"Unmarked obstacle: ({gx}, {gy})")
 
+grid_overlay = GridOverlay(
+    grid.width, grid.height, grid.density,
+    on_mark_obstacle=handle_obstacle_marked,
+    on_unmark_obstacle=handle_obstacle_unmarked
+)
 
 print("Opening webcam...")
 cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
@@ -43,6 +53,7 @@ ret, frame = cap.read()
 if not ret:
     print("Webcam couldn't be opened.")
     exit()
+
 # --- OpenCV Window Setup ---
 WINDOW_NAME = "Webcam Feed (Test Mode)"
 cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)

@@ -124,6 +124,11 @@ def connect_to_robot():
             for node in col
             if node.is_obstacle
         ]
+
+        print("Obstacle nodes being sent:")
+        for node in obstacle_nodes:
+            print(f"  - ({node.x}, {node.y})")
+        
         if obstacle_nodes:
             obstacle_str = " ".join(f"{{{n.x},{n.y}}}" for n in obstacle_nodes)
             msg = f"OBSTACLE {obstacle_str}\n"

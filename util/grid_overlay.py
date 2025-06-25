@@ -11,6 +11,8 @@ class GridOverlay:
         self.obstacles = []
         self.dragging_point = -1
         self.matrix = None
+        self.marking_obstacles = False
+        self.last_marked_cell = None
         self.on_mark_obstacle = on_mark_obstacle
         self.on_unmark_obstacle = on_unmark_obstacle
 
@@ -141,6 +143,8 @@ class GridOverlay:
                 if (gx, gy) != (-1, -1):
                     if (gx, gy) in self.obstacles:
                         self.obstacles.remove((gx, gy))
+                        if self.on_unmark_obstacle:
+                            self.on_unmark_obstacle(gx, gy)
                     else:
                         self.obstacles.append((gx, gy))
                         self.last_marked_cell = (gx, gy)
@@ -150,20 +154,17 @@ class GridOverlay:
         elif event == cv2.EVENT_MOUSEMOVE:
             if self.dragging_point != -1:
                 self.corners[self.dragging_point] = (mx, my)
+
             elif self.marking_obstacles:
                 gx, gy = self.get_coordinate_from_pixel(mx, my)
-                # Only mark if valid cell and not already marked
+                # Only mark if valid cell, not already marked, and not trying to unmark
                 if (gx, gy) != (-1, -1) and (gx, gy) != self.last_marked_cell:
-                    if (gx, gy) in self.obstacles:
-                        self.obstacles.remove((gx, gy))
-                        if self.on_unmark_obstacle:
-                            self.on_unmark_obstacle(gx, gy)
-                    else:
+                    if (gx, gy) not in self.obstacles:
                         self.obstacles.append((gx, gy))
                         self.last_marked_cell = (gx, gy)
                         if self.on_mark_obstacle:
                             self.on_mark_obstacle(gx, gy)
-
+                            
         elif event == cv2.EVENT_LBUTTONUP:
             self.dragging_point = -1
 
