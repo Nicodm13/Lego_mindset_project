@@ -227,9 +227,9 @@ while True:
                         client_socket.sendall(pose_msg.encode())
                         print(f"Sent COMMAND: {pose_msg.strip()}")
 
-                    is_fragment = len(path) > FRAGMENT_SIZE + 1  # + 1 because start node is included in path
+                    is_fragment = len(path) > (FRAGMENT_SIZE * 2) + 1  # + 1 because start node is included in path
                     if is_fragment:
-                        path = path[0:FRAGMENT_SIZE + 1]  # only include the first FRAGMENT_SIZE nodes
+                        path = path[0:(FRAGMENT_SIZE*2) + 1]  # only include the first FRAGMENT_SIZE nodes
                         path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
                         move_command = f"FRAGMENT {path_str}\n"
                     else:

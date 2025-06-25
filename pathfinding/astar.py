@@ -81,7 +81,7 @@ class AStar:
                 if edge_direction:
                     # Get how far back the robot must be
                     robot_size_x, robot_size_y = grid.get_robot_size_in_nodes(robot_width, robot_length)
-                    approach_distance = robot_size_y if edge_direction in [(0, -1), (0, 1)] else robot_size_x
+                    approach_distance = robot_size_y // 2 if edge_direction in [(0, -1), (0, 1)] else robot_size_x // 2
 
                     # Determine the true approach node position
                     ax = target.x + edge_direction[0] * approach_distance
