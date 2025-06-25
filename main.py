@@ -266,7 +266,8 @@ while True:
                         move_command = f"MOVE {path_str}\n"
                     client_socket.sendall(move_command.encode())
                     print(f"Sent COMMAND: {move_command.strip()}")
-                    visited_balls.add((next_node.x, next_node.y))
+                    if not is_fragment:
+                        visited_balls.add((next_node.x, next_node.y))
                     awaiting_response = True
                     is_dropoff_time = not is_fragment
                 except Exception as e:
