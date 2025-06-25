@@ -251,8 +251,8 @@ while True:
     cv2.imshow(WINDOW_NAME, frame)
 
     if connection_failed.is_set():
-        print("Robot connection failed.")
-        break
+        print("Robot connection failed. Press 'C' to retry.")
+        connection_failed.clear()
 
     # --- Automated Ball Path Execution ---
     if connected.is_set() and not awaiting_response:
