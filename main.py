@@ -120,6 +120,14 @@ def connect_to_robot():
             for node in col
             if node.is_obstacle
         ]
+        robot_position, robot_orientation, frame = get_robot_position_and_angle(original_frame, grid_overlay)
+        gx, gy = robot_position
+        orientation = round(robot_orientation, 2)
+        pose_msg = f"POSE {{{gx},{gy}}} {orientation}\n"
+        
+        client_socket.sendall(pose_msg.encode())
+        print(f"Sent COMMAND: {pose_msg.strip()}")
+
         if obstacle_nodes:
             obstacle_str = " ".join(f"{{{n.x},{n.y}}}" for n in obstacle_nodes)
             msg = f"OBSTACLE {obstacle_str}\n"
@@ -216,7 +224,7 @@ while True:
     # --- Automated Ball Path Execution ---
     if connected.is_set() and not awaiting_response:
         if is_dropoff_time:
-            dropoff_node = grid.get_dropoff(dropoffset=PREFERRED_DROPOFF, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
+            dropoff_node = grid.get_dropoff(dropoffset=1, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
             path = AStar.find_path(start_node, dropoff_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
             if path:
                 latest_path = path
