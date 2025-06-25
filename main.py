@@ -13,6 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
 import cv2
 import socket
 import threading
+import time
 from robot.config import *
 from robot.grid import Grid
 from pathfinding.astar import AStar
@@ -24,7 +25,7 @@ from util.aruco_util import get_robot_position_and_angle
 import time
 
 # --- Global Variables ---
-robot_ip = "192.168.2.19"
+robot_ip = "192.168.2.17"
 client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
@@ -258,7 +259,7 @@ while True:
     # --- Automated Ball Path Execution ---
     if connected.is_set() and not awaiting_response:
         if is_dropoff_time:
-            dropoff_node = grid.get_dropoff(dropoffset=1, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
+            dropoff_node = grid.get_dropoff(dropoffset=PREFERRED_DROPOFF, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
             path = AStar.find_path(start_node, dropoff_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
             if path:
                 latest_path = path
@@ -327,41 +328,75 @@ while True:
         detect_balls = not detect_balls
         print("Ball detection enabled" if detect_balls else "Ball detection disabled")
     elif key == ord('r'):
+        print("=== Starting system reset ===")
+        
+        # Clear program state
         visited_balls.clear()
+        print("✓ Cleared visited balls list")
+        
         tsp_path.clear()
+        print("✓ Cleared TSP path")
+        
         latest_path.clear()
+        print("✓ Cleared latest path")
+        
         start_node = None
         target_node = None
+        print("✓ Reset start and target nodes")
+        
         awaiting_response = False
         is_dropoff_time = False
-
+        printed_searching = False
+        print("✓ Reset state flags")
+        
         # Clear ball detections
         ball_data['white_balls']['pixels'].clear()
         ball_data['white_balls']['grid'].clear()
         ball_data['orange_balls']['pixels'].clear()
         ball_data['orange_balls']['grid'].clear()
+        print("✓ Cleared all ball detection data")
 
         # Clear obstacles
-        for col in grid.grid:
-            for node in col:
-                node.is_obstacle = False
-        grid_overlay.obstacles.clear()
+        obstacles_cleared = 0
+        for x in range(grid.width):
+            for y in range(grid.height):
+                node = grid.get_node(x, y)
+                if node and node.is_obstacle:
+                    handle_obstacle_unmarked(node.x, node.y)
+                    obstacles_cleared += 1
+        print(f"✓ Cleared {obstacles_cleared} obstacles")
 
-        # Reset start point
+        # Reset grid overlay
+        grid_overlay.obstacles.clear()
         grid_overlay.start_point = None
+        grid_overlay.end_point = None
+        print("✓ Reset grid overlay")
+
+        # Reset robot position tracking
+        robot_position = None
+        robot_orientation = None
+        print("✓ Reset robot position tracking")
 
         # Send RESET to robot if connected
         if connected.is_set() and client_socket:
             try:
                 client_socket.sendall(b"RESET\n")
-                print("Sent COMMAND: RESET")
+                print("✓ Sent RESET command to robot")
+                
+                # Reinitialize the grid on robot side
+                init_command = f"INIT {grid.width} {grid.height} {grid.density}\n"
+                client_socket.sendall(init_command.encode())
+                print(f"✓ Sent INIT command to robot: {init_command.strip()}")
             except Exception as e:
-                print(f"Failed to COMMAND: RESET - {e}")
+                print(f"✗ Failed to reset robot: {e}")
+                connected.clear()
+                client_socket.close()
+                client_socket = None
+                print("✓ Closed robot connection due to error")
+        else:
+            print("✓ No active robot connection to reset")
 
-        # Forcefully disconnect
-        connected.clear()
-        print("System reset. Waiting for 'C' to reconnect...")
-
+        print("=== System reset complete ===")
 # --- Cleanup ---
 cap.release()
 cv2.destroyAllWindows()
