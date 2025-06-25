@@ -116,9 +116,6 @@ def connect_to_robot():
         client_socket.connect((robot_ip, ROBOT_PORT))
         client_socket.settimeout(None)  # Remove timeout after connection
 
-        print("Connected to robot!")
-        connected.set()
-
         # Initialize the robot
         init_command = f"INIT {grid.width} {grid.height} {grid.density}\n"
         client_socket.sendall(init_command.encode())
@@ -185,6 +182,10 @@ def listen_for_robot():
                 connected.clear()
                 break
             message = data.decode().strip()
+
+            if not connected.is_set():
+                connected.set()
+
             if message.startswith("DONE"):
                 parts = message.split()
                 if len(parts) == 2:
