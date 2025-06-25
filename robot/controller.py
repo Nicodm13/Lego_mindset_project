@@ -79,6 +79,8 @@ class Controller:
         Follow a path of nodes by driving to each of them in order.
         If `is_dropoff` is True, stop at the second-last node and perform drop-off.
         """
+        print("Initiating {} command".format(mode))
+        
         spinner_started = False
 
         # Determine the final index to stop at

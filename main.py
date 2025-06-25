@@ -268,8 +268,9 @@ while True:
                     print(f"Sent COMMAND: {move_command.strip()}")
                     if not is_fragment:
                         visited_balls.add((next_node.x, next_node.y))
+                        is_dropoff_time = True
+                        print("it's dropoff time!!")
                     awaiting_response = True
-                    is_dropoff_time = not is_fragment
                 except Exception as e:
                     print(f"Error sending move: {e}")
             else:
