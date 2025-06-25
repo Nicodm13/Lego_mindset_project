@@ -25,7 +25,7 @@ from util.aruco_util import get_robot_position_and_angle
 import time
 
 # --- Global Variables ---
-robot_ip = "192.168.2.17"
+robot_ip = "192.168.2.19"
 client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
@@ -71,7 +71,7 @@ def open_webcam(index=1, width=1280, height=720):
         cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
     elif system == "Darwin":
         cap = cv2.VideoCapture(index, cv2.CAP_AVFOUNDATION)
-    elif system == "Linux":
+    elif system  == "Linux":
         cap = cv2.VideoCapture(index, cv2.CAP_V4L2)
     else:
         logging.error(f"Unsupported OS: {system}")
@@ -113,21 +113,35 @@ def connect_to_robot():
 
     try:
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.settimeout(1.0)  # Short timeout per attempt
+        client_socket.settimeout(1.0)
         client_socket.connect((robot_ip, ROBOT_PORT))
-        client_socket.settimeout(None)  # Remove timeout after connection
+        client_socket.settimeout(None)
 
-        # Initialize the robot
+        # Start listener before sending commands
+        threading.Thread(target=listen_for_robot, daemon=True).start()
+
+        # Send INIT first
         init_command = f"INIT {grid.width} {grid.height} {grid.density}\n"
         client_socket.sendall(init_command.encode())
         print(f"Sent: {init_command.strip()}")
 
-        # Send obstacles
+        # Wait for READY
+        timeout_seconds = 5
+        def wait_for_ready(timeout_seconds):
+            print(f"Waiting for robot to send READY...")
+            start_time = time.time()
+            while time.time() - start_time < timeout_seconds:
+                if connected.is_set():
+                    return True
+                time.sleep(0.1)
+            return False
+
+        if not wait_for_ready(timeout_seconds):
+            raise TimeoutError(f"Robot did not respond with READY in {timeout_seconds} seconds.")
+
+        # Send OBSTACLE
         obstacle_nodes = [
-            node
-            for col in grid.grid
-            for node in col
-            if node.is_obstacle
+            node for col in grid.grid for node in col if node.is_obstacle
         ]
 
         print("Obstacle nodes being sent:")
@@ -142,35 +156,16 @@ def connect_to_robot():
         else:
             print("No obstacles to send.")
 
-        threading.Thread(target=listen_for_robot, daemon=True).start()
-
     except Exception as e:
-        print(f"Initial connection failed: {e}")
-        client_socket = None
-        connection_failed.set()
-        return
-
-    # Watchdog timeout to detect if robot never responds
-    def connection_watchdog(timeout_seconds=5):
-        print(f"Waiting for robot response for up to {timeout_seconds} seconds...")
-        start_time = time.time()
-
-        while time.time() - start_time < timeout_seconds:
-            if connected.is_set():
-                return  # Robot responded
-            time.sleep(0.2)
-
-        if not connected.is_set():
-            print(f"Connection timeout after {timeout_seconds} seconds. Robot did not respond.")
-            try:
+        print(f"Connection setup failed: {e}")
+        try:
+            if client_socket:
                 client_socket.close()
-            except:
-                pass
-            connected.clear()
-            connection_failed.set()
-            print("Connection reset. Returning to initial state.")
-
-    threading.Thread(target=connection_watchdog, daemon=True).start()
+        except:
+            pass
+        client_socket = None
+        connected.clear()
+        connection_failed.set()
 
 # --- Robot Listener ---
 def listen_for_robot():
