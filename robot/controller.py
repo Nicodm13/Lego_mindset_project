@@ -133,7 +133,7 @@ class Controller:
         angle_difference = self.angle_diff(target_angle, current_angle)
         distance = self.grid.get_distance(start, target)
 
-        print(f"External orientation: {current_angle:.1f}°, Target angle: {target_angle}°, Δ = {angle_difference:.1f}°")
+        print("External orientation: {}°, Target angle: {}°, Δ = {}°".format(current_angle, target_angle, angle_difference))
 
         if abs(angle_difference) <= 30:
             self.drive_curve(distance, angle_difference)
@@ -196,7 +196,7 @@ class Controller:
             # Adjust scale factor to control curve sharpness
             turn_rate = angle_delta / (distance / 10)
 
-            print(f"Curve driving: Distance={distance:.1f}, TurnRate={turn_rate:.1f}")
+            print("Curve driving: Distance={}, TurnRate={}".format(distance, turn_rate))
             self.drive_base.curve(distance, turn_rate)
 
             # No gyro correction if you use ArUco afterward
@@ -216,7 +216,7 @@ class Controller:
         delta = self.angle_diff(target_angle, current)
 
         if abs(delta) > ROTATE_CORRECTION_THRESHOLD:
-            print(f"Correcting heading: delta={delta:.1f}")
+            print("Correcting heading: delta={}".format(delta))
             self.drive_base.turn(delta)
             self.gyro_sensor.reset_angle(target_angle)
 
