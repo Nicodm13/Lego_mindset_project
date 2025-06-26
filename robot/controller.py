@@ -32,10 +32,11 @@ class Controller:
         self.right_motor = Motor(Port.B)
         self.drive_base = DriveBase(self.left_motor, self.right_motor, WHEEL_DIAMETER, AXLE_TRACK)
         self.spinner_motor = Motor(Port.C)
+        self.spinner_motor.reset_angle(0)
 
         # Initialize Sensors
         self.gyro_sensor = GyroSensor(Port.S1)
-        self.gyro_sensor.reset_angle(0)
+        self.gyro_sensor.reset_angle(0) #TODO check if this should be removed
 
         # Active socket connection (set in start_server)
         self.conn = None
@@ -46,7 +47,21 @@ class Controller:
         # Reset the spinner
         self.reset_spinner()
 
-    def navigate_to_target(self, path: list[Node], is_dropoff: bool):
+    def reset_angle(self):
+        """Reset the robot to a multiple of 90."""
+
+        current_angle = self.gyro_sensor.angle()
+        offset = self.gyro_sensor.angle()%90
+        if offset > 45:
+            correction = 90 - offset
+        else:
+            correction = -offset
+        new_angle = current_angle + correction
+        print("Resetting angle to" + str(new_angle))
+        self.rotate_to(new_angle)
+
+
+    def navigate_to_target(self, path: list[Node], mode: str):
         """Follow a given path sent from PC."""
         if(self.reset_requested):
             return
@@ -54,40 +69,53 @@ class Controller:
         if path and len(path) >= 2:
             print("Navigating to path with {} nodes".format(len(path)))
             self.current_node = path[0]
-            self.follow_path(path, is_dropoff)
+            self.follow_path(path, mode)
         else:
             self.ev3.screen.print("Invalid or short path")
 
-    def follow_path(self, path, is_dropoff):
-        """Follow a path of nodes by driving to each of them in order.
 
-        Args:
-            path (List[Node]): List of nodes to go to, in order, starting with the node the robot is currently on.
+    def follow_path(self, path, mode):
         """
+        Follow a path of nodes by driving to each of them in order.
+        If `is_dropoff` is True, stop at the second-last node and perform drop-off.
+        """
+        print("Initiating {} command".format(mode))
         
+        spinner_started = False
+
+        # Determine the final index to stop at
+        if mode == 'DROPOFF':
+            stop_index = len(path) - 2
+        else:
+            stop_index = len(path) - 1
+
         i = 1
-        while i < len(path) - 1:
-            if(self.reset_requested):
+        while i <= stop_index:
+            if self.reset_requested:
                 return
-            print("Step {}: From ({},{}) to ({},{})".format(i, path[i-1].x, path[i-1].y, path[i].x, path[i].y))
-            self.move_to(path[i-1], path[i])
+
+            nodes_remaining = stop_index - i + 1
+
+            # Start spinner only if picking up and 2 nodes left
+            if mode == 'MOVE':
+                if not spinner_started and nodes_remaining == 2:
+                    print("Starting spinner")
+                    self.start_spinner(SPINNER_SPEED)
+                    spinner_started = True
+
+            print("Step {}: From ({},{}) to ({},{}) - {} nodes remaining".format(
+                i, path[i - 1].x, path[i - 1].y, path[i].x, path[i].y, nodes_remaining))
+
+            self.move_to(path[i - 1], path[i])
             i += 1
 
-        # Fetch or drop off ball
-        if not len(path) >= 2:
-            pass
-        elif is_dropoff:
-            try:
-                index = path.index(self.current_node)
-                if index > 0:
-                    previous_node = path[index - 1]
-                else:
-                    previous_node = self.current_node 
-                self.drop_off_ball(self.current_node, previous_node)
-            except ValueError:
-                self.ev3.screen.print("Current node not in path")
-        else:
-            self.fetch_ball(path[-1])
+        # Drop off the ball if requested
+        if mode == 'DROPOFF' and len(path) >= 2:
+            self.drop_off_ball()
+
+        if mode != 'FRAGMENT':
+            # Always reset spinner at the end
+            self.reset_spinner()
 
         # Notify PC when done
         if self.conn:
@@ -98,6 +126,7 @@ class Controller:
             except Exception as e:
                 print("Failed to send DONE:", e)
 
+
     def move_to(self, start: Node, target: Node):
         """Rotate and drive to a **neighboring** node only if needed."""
         xdiff = target.x - start.x
@@ -106,19 +135,16 @@ class Controller:
         angle = self.offset_to_angle(xdiff, ydiff)
         current_gyro = self.gyro_sensor.angle()
 
-        # Check if the target is already in the right direction
-        if abs(angle - current_gyro) > ROTATE_CORRECTION_THRESHOLD:
-            self.rotate_to(angle)
-            # TODO: Implement camera check
+        angle_difference = abs(self.angle_diff(angle, current_gyro))
 
-        if self.reset_requested:
-            self.left_motor.stop(Stop.BRAKE)
-            self.right_motor.stop(Stop.BRAKE)
-            return
+        # Only rotate if angle difference is significant
+        if angle_difference >= ROTATE_CORRECTION_THRESHOLD:
+            self.rotate_to(angle)
 
         distance = self.grid.get_distance(start, target)
         self.drive(distance)
         self.current_node = target
+
 
     def offset_to_angle(self, xdiff: int, ydiff: int) -> int:
         """Convert a rectangular offset to the corresponding angle, e.g., (1, -1) -> 45.
@@ -139,14 +165,14 @@ class Controller:
         except (KeyError, ValueError) as e:
             raise ValueError("Invalid offset ({}, {}) for direction lookup.".format(xdiff, ydiff)) from e
 
-    def drive(self, distance: float, speed=DRIVE_SPEED, acceleration=DRIVE_ACCELERATION):
+    def drive(self, distance: float):
         """Drive forward a specific distance using DriveBase.straight() with safe control."""
         try:
             self.drive_base.stop()
 
-            self.drive_base.settings(speed, acceleration)
+            self.drive_base.settings(DRIVE_SPEED, DRIVE_ACCELERATION)
 
-            print("Driving: Distance={}, Speed={}".format(distance, speed))
+            print("Driving: Distance={}, Speed={}".format(distance, DRIVE_SPEED))
             self.drive_base.straight(distance)
 
         except OSError as e:
@@ -157,33 +183,45 @@ class Controller:
         finally:
             self.drive_base.stop()
 
+
     def rotate_to(self, target_angle: float):
-        """Rotate to target using gyro feedback with minimal unnecessary corrections."""
+        """
+        Rotate to a precise angle using DriveBase and gyro correction.
+        Ensures rotation lands exactly on 0°, 90°, 180°, or 270° with no drift.
+        """
         try:
             self.drive_base.stop()
 
-            # Normalize target to [0, 360)
+            # Normalize the target angle
             target_angle = self.normalize_angle(target_angle)
+            current_angle = self.normalize_angle(self.gyro_sensor.angle())
+            delta = self.angle_diff(target_angle, current_angle)
 
-            current_gyro = self.normalize_angle(self.gyro_sensor.angle())
-            delta = self.angle_diff(target_angle, current_gyro)
+            print("Rotating from {}° to {}° (delta: {}°)".format(current_angle, target_angle, delta))
 
-            print("Current: {:.1f}°, Target: {}°, Delta: {:.1f}°".format(
-                current_gyro, target_angle, delta))
-
-            if abs(delta) < ROTATE_CORRECTION_THRESHOLD:
-                print("[Skipping rotation (within threshold of {}°)".format(
-                    ROTATE_CORRECTION_THRESHOLD))
-                return
-
+            # Use DriveBase for main rotation
             self.drive_base.settings(turn_rate=ROTATE_SPEED, turn_acceleration=ROTATE_ACCLERATION)
             self.drive_base.reset()
-
             self.drive_base.turn(delta)
-            print("Rotating {}".format(delta))
 
-            # Reset gyro to reflect new heading (avoid drift accumulation)
+            # Gyro correction loop
+            max_attempts = 3
+            attempts = 0
+
+            while attempts < max_attempts:
+                current_angle = self.normalize_angle(self.gyro_sensor.angle())
+                delta = self.angle_diff(target_angle, current_angle)
+
+                if abs(delta) <= ROTATE_CORRECTION_THRESHOLD:
+                    break
+
+                print("Correcting residual drift: {}°".format(delta))
+                self.drive_base.turn(delta)
+                attempts += 1
+
             self.gyro_sensor.reset_angle(target_angle)
+
+            wait(500)
 
         except OSError as e:
             print("Rotation EPERM error:", e)
@@ -202,34 +240,40 @@ class Controller:
         """Normalize any angle to the [0, 360) range."""
         return angle % 360
 
-    def fetch_ball(self, target_node: Node):
-        """Rotates toward and drives to the ball from current node, and spins to pick it up."""
-        print("Fetching ball...")
 
-        try:
-            self.start_spinner(SPINNER_SPEED)
-            self.drive_base.stop()
-            self.drive_base.settings(PICKUP_SPEED, PICKUP_ACCELERATION)
+    def start_spinner(self, speed: int = 500):
+        """Start rotating the spinner.
 
-            # Rotate toward ball
-            xdiff = target_node.x - self.current_node.x
-            ydiff = target_node.y - self.current_node.y
+        Args:
+            speed (int, optional): Speed of spinner (in degrees/second). Defaults to 500.
+        """
+        self.spinner_motor.run(-speed)
 
-            angle = self.offset_to_angle(xdiff, ydiff)
-  
-            self.rotate_to(angle)
+    def stop_spinner(self):
+        """Stop rotating the spinner.
+        """
+        self.spinner_motor.stop(Stop.BRAKE)
 
-            # Drive to ball
-            distance = self.grid.get_distance(self.current_node, target_node)
-            print("Driving to ball at ({}, {}) with distance {}".format(target_node.x, target_node.y, distance))
-            self.drive_base.straight(distance)
+    def reset_spinner(self):
+        # Get the current spinner angle, modulo 360 to keep within one rotation
+        current_angle = self.spinner_motor.angle() % 360
 
-            self.current_node = target_node
-        finally:
-            self.reset_spinner()
-            print("Ball fetched and spinner reset.")
+        # Calculate shortest path back to SPINNER_RESET_ANGLE (which is 0)
+        target = 0 % 360
+        diff = (target - current_angle + 180) % 360 - 180  # Result is in [-180, 180]
 
-    def drop_off_ball(self, start: Node, target: Node):
+        print("Resetting spinner from {:.1f}° → rotating {:.1f}° to reach {}°".format(
+            current_angle, diff, 0))
+
+        # Perform relative turn
+        self.spinner_motor.run_angle(SPINNER_SPEED, diff, then=Stop.BRAKE, wait=True)
+
+        # Reset internal angle to keep it aligned with logic
+        self.spinner_motor.reset_angle(0)
+
+        print("Spinner reset complete.")
+
+    def drop_off_ball(self):
         """
         Drops off the ball by reversing the spinner briefly and then resetting.
         Then drives 1 node backward before sending DONE.
@@ -243,7 +287,7 @@ class Controller:
                 return
 
             # Spin backward to release ball
-            self.spinner_motor.run_angle(SPINNER_SPEED, -90, then=Stop.BRAKE, wait=True)
+            self.start_spinner(-SPINNER_SPEED)
 
             # Wait to let ball roll out
             wait(2000)  # 2 second
@@ -252,53 +296,9 @@ class Controller:
             self.reset_spinner()
             print("Ball dropped off and spinner reset.")
 
-            # Get the distance to the previous node
-            distance = self.grid.get_distance(start, target)
-
-            # Reverse the distance
-            self.drive(-distance, speed=DRIVE_SPEED, acceleration=DRIVE_ACCELERATION)
-            self.current_node = target
-
         except OSError as e:
             print("Drop-off error:", e)
             self.spinner_motor.stop(Stop.BRAKE)
-
-
-    def start_spinner(self, speed: int = 500):
-        """Start rotating the spinner.
-
-        Args:
-            speed (int, optional): Speed of spinner (in degrees/second). Defaults to 500.
-        """
-        self.spinner_motor.run(-speed)
-
-    def reset_spinner(self):
-        """Reset the spinner to the default 'up' position using shortest rotation."""
-        self.spinner_motor.stop(Stop.BRAKE)
-
-        # Get the current spinner angle, modulo 360 to keep within one rotation
-        current_angle = self.spinner_motor.angle() % 360
-
-        # Calculate shortest path back to 0
-        target = 0 
-        diff = (target - current_angle + 180) % 360 - 180  # Result is in [-180, 180]
-
-        print("Resetting spinner from {:.1f} rotating {:.1f} to reach {}".format(
-            current_angle, diff, 0))
-
-        # Perform relative turn
-        self.spinner_motor.run_angle(SPINNER_SPEED, diff, then=Stop.BRAKE, wait=True)
-
-        # Reset internal angle to keep it aligned with logic
-        self.spinner_motor.reset_angle(0)
-
-        print("Spinner reset complete.")
-
-
-    def stop_spinner(self):
-        """Stop rotating the spinner.
-        """
-        self.spinner_motor.stop(Stop.BRAKE)
 
     def start_server(self):
         """Starts and runs the server on the robot to receive commands."""
@@ -353,9 +353,33 @@ class Controller:
                                 except Exception:
                                     self.ev3.screen.print("Invalid OBST")
 
-                    elif command.startswith("MOVE") or command.startswith("DROPOFF"):
-                        is_dropoff = command.startswith("DROPOFF")
+                    elif command.startswith("POSE"):
                         parts = command.split()
+                        if len(parts) == 3:
+                            coord_str = parts[1].strip("{}")
+                            if "," in coord_str:
+                                try:
+                                    x_str, y_str = coord_str.split(",")
+                                    x, y = int(x_str), int(y_str)
+                                    angle = float(parts[2])
+                                    node = self.grid.get_node(x, y)
+                                    if node:
+                                        self.current_node = node
+                                        self.gyro_sensor.reset_angle(int(angle))
+                                        self.reset_angle() #rotate the robot to nearest 90 degree
+                                        print("POSE updated: Position=({x},{y}), Angle={angle}".format(x=x, y=y, angle=angle))
+                                        self.ev3.screen.print("POSE OK")
+                                    else:
+                                        self.ev3.screen.print("POSE node invalid")
+                                except Exception as e:
+                                    print("POSE parse error:", e)
+                                    self.ev3.screen.print("POSE parse error")
+                        else:
+                            self.ev3.screen.print("Invalid POSE format")
+
+                    elif command.startswith("MOVE") or command.startswith("DROPOFF") or command.startswith("FRAGMENT"):
+                        parts = command.split()
+                        mode = parts[0]
                         coords = []
                         for coord_str in parts[1:]:
                             coord_str = coord_str.strip("{}")
@@ -370,7 +394,7 @@ class Controller:
                                     self.ev3.screen.print("Invalid MOVE coord")
 
                         if len(coords) >= 2:
-                            self.navigate_to_target(coords, is_dropoff)
+                            self.navigate_to_target(coords, mode)
                         else:
                             self.ev3.screen.print("Invalid MOVE path")
 

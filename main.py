@@ -1,5 +1,11 @@
 import os
 import sys
+import platform
+import logging
+
+from robot import direction
+
+from util.aruco_util import get_robot_position_and_angle
 
 # Add robot folder to sys.path before imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
@@ -7,14 +13,14 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
 import cv2
 import socket
 import threading
-import numpy as np
-from robot.config import ROBOT_WIDTH, ROBOT_LENGTH, ROBOT_PORT
+from robot.config import *
 from robot.grid import Grid
 from pathfinding.astar import AStar
 from util.grid_overlay import GridOverlay
 from util.find_balls import find_ping_pong_balls, draw_ball_detections
 from util.path_visualizer import draw_astar_path
-from util.find_robot import debug_robot_detection, find_robot, draw_robot_detection_overlay
+#from util.find_robot import debug_robot_detection, find_robot, draw_robot_detection_overlay
+from util.aruco_util import get_robot_position_and_angle
 import time
 
 # --- Global Variables ---
@@ -23,23 +29,6 @@ client_socket = None
 connection_failed = threading.Event()
 connected = threading.Event()
 
-# Run HSV calibration at startup
-print("Starting HSV calibration for robot detection...")
-try:
-    # Get HSV ranges from the debug interface
-    hsv_ranges = debug_robot_detection()
-    print("HSV calibration complete. Values will be used for robot detection.")
-except Exception as e:
-    print(f"HSV calibration failed: {e}")
-    # Use default values if calibration fails
-    hsv_ranges = (
-        np.array([85, 20, 100]),  # lower_blue
-        np.array([110, 150, 220]),  # upper_blue
-        np.array([25, 40, 100]),   # lower_green
-        np.array([40, 255, 255])   # upper_green
-    )
-    print("Using default HSV values for robot detection")
-
 start_node = None
 visited_balls = set()
 target_node = None
@@ -47,16 +36,19 @@ tsp_path = []
 latest_path = []
 awaiting_response = False
 is_dropoff_time = False
+robot_position = None
+robot_orientation = None
+
+
+# Ball detection state
+detect_balls = False
 ball_data = {
     'white_balls': {'pixels': [], 'grid': []},
     'orange_balls': {'pixels': [], 'grid': []}
 }
-robot_position = None
-robot_orientation = None
-orientation_corrected = False
 
 # --- Grid & Webcam Setup ---
-grid = Grid(1800, 1200, 17)
+grid = Grid(GRID_WIDTH, GRID_HEIGHT, GRID_DENSITY)
 
 def handle_obstacle_marked(gx, gy):
     node = grid.get_node(gx, gy)
@@ -65,25 +57,40 @@ def handle_obstacle_marked(gx, gy):
 
 grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
 
-print("Opening webcam...")
-cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+def open_webcam(index=1, width=1280, height=720):
+    system = platform.system()
+    logging.info(f"Detected OS: {system}")
 
-# Wait until it's ready
-while not cap.isOpened():
-    print("Waiting for camera...")
-    time.sleep(0.5)
+    if system == "Windows":
+        cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+    elif system == "Darwin":
+        cap = cv2.VideoCapture(index, cv2.CAP_AVFOUNDATION)
+    elif system == "Linux":
+        cap = cv2.VideoCapture(index, cv2.CAP_V4L2)
+    else:
+        logging.error(f"Unsupported OS: {system}")
+        return None
 
-# Warm-up
-for _ in range(5):
-    cap.read()
-    cv2.waitKey(30)
+    if not cap.isOpened():
+        logging.info("Initial webcam open failed. Retrying...")
+        for i in range(5):
+            time.sleep(0.5)
+            cap.open(index)
+            if cap.isOpened():
+                break
 
-ret, frame = cap.read()
-if not ret:
-    print("Webcam couldn't be opened.")
-    exit()
+    if cap.isOpened():
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+
+        ret, _ = cap.read()
+        if not ret:
+            logging.error("Webcam opened but failed to read frames.")
+            return None
+        return cap
+    else:
+        logging.error("Could not open webcam.")
+        return None
 
 # --- OpenCV Window Setup ---
 WINDOW_NAME = "Webcam Feed"
@@ -141,11 +148,11 @@ def listen_for_robot():
                 parts = message.split()
                 if len(parts) == 2:
                     try:
-                        if robot_position:
-                            x, y = robot_position
-                            start_node = grid.get_node(x, y)
-                            print(f"Updated robot position to: ({x}, {y})")
-
+                        x_str, y_str = parts[1].split(",")
+                        x, y = int(x_str), int(y_str)
+                        # start_node = grid.get_node(x, y)
+                        start_node = grid.get_node(*robot_position)
+                        print(f"Updated robot position to: ({x}, {y})")
                     except Exception as e:
                         print(f"Failed to parse DONE position: {e}")
                 else:
@@ -156,41 +163,48 @@ def listen_for_robot():
         print(f"Listener disconnected: {e}")
         connected.clear()
 
+# --- Webcam Initialization ---
+cap = open_webcam()
+if cap is None:
+    logging.error("Webcam could not be initialized. Exiting.")
+    sys.exit(1)
+
 # --- Main Loop ---
+printed_searching = False
+
 while True:
     ret, frame = cap.read()
     if not ret:
         break
 
-    original_frame = frame.copy()
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)                    # Convert to grayscale
+    original_frame = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)           # For detection and overlays
+    frame = original_frame.copy()                                     # Displayed frame will be grayscale + overlays
 
-    # Detect balls and robot
+    robot_orientation_old = robot_orientation
+    robot_position, robot_orientation, frame = get_robot_position_and_angle(original_frame, grid_overlay)
+    if robot_orientation == 0: # Only update the orientation if we get a valid value
+        robot_orientation = robot_orientation_old
     if connected.is_set():
-        ball_data = find_ping_pong_balls(original_frame, grid_overlay)
-        frame = draw_ball_detections(frame, ball_data)
+            ball_data = find_ping_pong_balls(original_frame, grid_overlay)
+            frame = draw_ball_detections(frame, ball_data)
 
-    # Detect robot
-    robot_x_pixels, robot_y_pixels, robot_orientation, frame = find_robot(original_frame, grid_overlay, hsv_ranges)
-    robot_position = grid_overlay.get_coordinate_from_pixel(robot_x_pixels, robot_y_pixels)
+            # Display ball coordinates
+            white_txt = f"White: {len(ball_data['white_balls']['grid'])} balls"
+            orange_txt = f"Orange: {len(ball_data['orange_balls']['grid'])} balls"
+            cv2.putText(frame, white_txt, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            cv2.putText(frame, orange_txt, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
 
-    # Draw grid and path overlays
+    # Draw grid overlay after ball detection
     frame = grid_overlay.draw(frame)
 
+    # Connection and detection status
+    status_text = "Press 'C' to Connect" if not connected.is_set() else "Connected"
+    cv2.putText(frame, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
+
+    # Draw any paths found by A*
     if latest_path:
         frame = draw_astar_path(frame, latest_path, grid_overlay)
-
-    # Draw status + ball info text on top of all overlays
-    text_y = 30
-    line_height = 30
-    status_text = "Press 'C' to Connect" if not connected.is_set() else "Connected"
-    white_txt = f"White: {len(ball_data['white_balls']['grid'])} balls"
-    orange_txt = f"Orange: {len(ball_data['orange_balls']['grid'])} balls"
-
-    cv2.putText(frame, status_text, (10, text_y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
-    text_y += line_height
-    cv2.putText(frame, white_txt, (10, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-    text_y += line_height
-    cv2.putText(frame, orange_txt, (10, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
 
     cv2.imshow(WINDOW_NAME, frame)
 
@@ -201,17 +215,30 @@ while True:
     # --- Automated Ball Path Execution ---
     if connected.is_set() and not awaiting_response:
         if is_dropoff_time:
-            dropoff_node = grid.get_dropoff(dropoffset=1, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
+            dropoff_node = grid.get_dropoff(dropoffset=PREFERRED_DROPOFF, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
             path = AStar.find_path(start_node, dropoff_node, grid, robot_width=ROBOT_WIDTH, robot_length=ROBOT_LENGTH)
             if path:
                 latest_path = path
                 try:
-                    path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
-                    move_command = f"DROPOFF {path_str}\n"
+                    if robot_position and robot_orientation:
+                        gx, gy = robot_position
+                        orientation = round(robot_orientation, 2)
+                        pose_msg = f"POSE {{{gx},{gy}}} {orientation}\n"
+                        client_socket.sendall(pose_msg.encode())
+                        print(f"Sent COMMAND: {pose_msg.strip()}")
+
+                    is_fragment = len(path) > (FRAGMENT_SIZE * 2) + 1  # + 1 because start node is included in path
+                    if is_fragment:
+                        path = path[0:(FRAGMENT_SIZE*2) + 1]  # only include the first FRAGMENT_SIZE nodes
+                        path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                        move_command = f"FRAGMENT {path_str}\n"
+                    else:
+                        path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                        move_command = f"DROPOFF {path_str}\n"
                     client_socket.sendall(move_command.encode())
                     print(f"Sent COMMAND: {move_command.strip()}")
                     awaiting_response = True
-                    is_dropoff_time = False
+                    is_dropoff_time = is_fragment
                 except Exception as e:
                     print(f"Error sending dropoff: {e}")
             else:
@@ -223,13 +250,27 @@ while True:
             if path:
                 latest_path = path
                 try:
-                    path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
-                    move_command = f"MOVE {path_str}\n"
+                    if robot_position and robot_orientation:
+                        gx, gy = robot_position
+                        orientation = round(robot_orientation, 2)
+                        pose_msg = f"POSE {{{gx},{gy}}} {orientation}\n"
+                        client_socket.sendall(pose_msg.encode())
+                        print(f"Sent COMMAND: {pose_msg.strip()}")
+                    is_fragment = len(path) > FRAGMENT_SIZE + 1  # + 1 because start node is included in path
+                    if is_fragment:
+                        path = path[0:FRAGMENT_SIZE + 1]  # only include the first FRAGMENT_SIZE nodes
+                        path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                        move_command = f"FRAGMENT {path_str}\n"
+                    else:
+                        path_str = " ".join(f"{{{node.x},{node.y}}}" for node in path)
+                        move_command = f"MOVE {path_str}\n"
                     client_socket.sendall(move_command.encode())
                     print(f"Sent COMMAND: {move_command.strip()}")
-                    visited_balls.add((next_node.x, next_node.y))
+                    if not is_fragment:
+                        visited_balls.add((next_node.x, next_node.y))
+                        is_dropoff_time = True
+                        print("it's dropoff time!!")
                     awaiting_response = True
-                    is_dropoff_time = True
                 except Exception as e:
                     print(f"Error sending move: {e}")
             else:
@@ -240,13 +281,10 @@ while True:
             unvisited = [coord for coord in all_balls if coord not in visited_balls]
 
             if unvisited:
-                if not start_node and robot_position:
-                    sx, sy = robot_position
-                    start_node = grid.get_node(sx, sy)
-
+                if not start_node:
+                    start_node = grid.get_node(*robot_position) if robot_position else None
                 closest = AStar.get_closest_nodes(start_node, unvisited, grid, n=1)
                 tsp_path.extend(AStar.tsp_brute_force(start_node, closest, grid))
-    
 
 
     # --- Key Handling ---
@@ -256,6 +294,9 @@ while True:
     elif key == ord('c') and not connected.is_set():
         connection_failed.clear()
         threading.Thread(target=connect_to_robot, daemon=True).start()
+    elif key == ord('d'):
+        detect_balls = not detect_balls
+        print("Ball detection enabled" if detect_balls else "Ball detection disabled")
     elif key == ord('r'):
         visited_balls.clear()
         tsp_path.clear()

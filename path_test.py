@@ -1,6 +1,7 @@
 import sys
 import os
 import cv2
+import time
 
 # Add robot folder to sys.path before imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'robot'))
@@ -22,13 +23,26 @@ def handle_obstacle_marked(gx, gy):
 
 grid_overlay = GridOverlay(grid.width, grid.height, grid.density, on_mark_obstacle=handle_obstacle_marked)
 
-os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
-cap = cv2.VideoCapture(0)
+
+print("Opening webcam...")
+cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+# Wait until it's ready
+while not cap.isOpened():
+    print("Waiting for camera...")
+    time.sleep(0.5)
+
+# Warm-up
+for _ in range(5):
+    cap.read()
+    cv2.waitKey(30)
+
 ret, frame = cap.read()
 if not ret:
     print("Webcam couldn't be opened.")
     exit()
-
 # --- OpenCV Window Setup ---
 WINDOW_NAME = "Webcam Feed (Test Mode)"
 cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)

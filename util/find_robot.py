@@ -151,7 +151,7 @@ def find_robot(frame, grid_overlay=None, hsv_ranges=None):
         
         if grid_overlay is not None:
             # Find the grid cell containing the robot using the proper conversion method
-            grid_x, grid_y = grid_overlay.get_coordinate_from_pixel(robot_x, robot_y)
+            grid_x, grid_y = grid_overlay.get_coordinate_from_pixel(robot_x, robot_y, is_robot=True)
             
             # Only proceed if the robot is within a valid grid cell
             if grid_x != -1 and grid_y != -1:
@@ -177,49 +177,31 @@ def find_robot(frame, grid_overlay=None, hsv_ranges=None):
     
     return None, None, None, output_frame
 
-def get_grid_north_angle(grid_overlay, robot_x, robot_y):
+def get_grid_north_angle(grid_overlay, pixel_x, pixel_y):
     """
     Calculate the angle of the grid's North direction based on the robot's position in the grid.
     North is defined as perpendicular to the horizontal grid line.
-    
+
     Args:
         grid_overlay: GridOverlay object
-        robot_x, robot_y: Robot coordinates in pixels
-    
+        pixel_x, pixel_y: coordinates in pixels
+
     Returns:
         float: Angle in degrees where 0 is the positive x-axis of the frame
     """
-    # Check if we have a perspective transform matrix
     if grid_overlay.matrix is None:
-        return 0  # Default if no grid transform is available
-    
-    # We'll determine grid North by looking at how the grid's Y-axis is transformed
-    # First, get the grid coordinate of the robot
-    grid_cell = grid_overlay.get_coordinate_from_pixel(robot_x, robot_y)
-    if grid_cell == (-1, -1):
-        return 0  # Robot is outside valid grid area
-    
-    # Get the perspective transform matrix
-    matrix = grid_overlay.matrix
-    
-    # Calculate the grid's North direction (negative Y-axis in grid coordinates)
-    # Take two points along the grid's Y-axis
-    p1 = np.array([[0.5, 0]], dtype=np.float32).reshape(-1, 1, 2) * 100  # Top middle point
-    p2 = np.array([[0.5, 1]], dtype=np.float32).reshape(-1, 1, 2) * 100  # Bottom middle point
-    
-    # Transform these points to get the direction in the image
-    warped_p1 = cv2.perspectiveTransform(p1, matrix)[0][0]
-    warped_p2 = cv2.perspectiveTransform(p2, matrix)[0][0]
-    
-    # Calculate the angle of this line (grid's North)
+        return 0
+
+    p1 = np.array([[0.5, 0]], dtype=np.float32).reshape(-1, 1, 2) * 100
+    p2 = np.array([[0.5, 1]], dtype=np.float32).reshape(-1, 1, 2) * 100
+
+    warped_p1 = cv2.perspectiveTransform(p1, grid_overlay.matrix)[0][0]
+    warped_p2 = cv2.perspectiveTransform(p2, grid_overlay.matrix)[0][0]
+
     dx = warped_p2[0] - warped_p1[0]
     dy = warped_p2[1] - warped_p1[1]
-    
-    # Calculate angle (grid North is the negative of this direction since Y increases downward)
-    north_angle = math.degrees(math.atan2(-dy, dx))
-    north_angle = (north_angle + 180) % 360  # Adjust to get grid North
-    
-    return north_angle
+    angle = (math.degrees(math.atan2(-dy, dx)) + 180) % 360
+    return angle
 
 def debug_robot_detection():
     """
